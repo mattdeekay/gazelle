@@ -1,0 +1,9 @@
+# Exclude the venv and the toy dataset #
+########################################
+
+tensorflow_venv/
+toy_dataset/
+
+# file types ignore #
+#####################
+*.swp
