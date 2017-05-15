@@ -7,3 +7,9 @@ toy_dataset/
 # file types ignore #
 #####################
 *.swp
+*.pyc
+
+
+# specific files #
+##################
+sftp-config.json
