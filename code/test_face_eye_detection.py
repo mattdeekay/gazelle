@@ -13,8 +13,8 @@ in_names = ["face1_macron.jpg", "face2_legend.jpg", "face3_feifei.jpg"]
 
 def original_demo():
     # Input and Output file names
-    face_in  = "face1_macron.jpg"
-    face_out = "face1_macron_out.png"
+    face_in  = "face3_feifei.jpg"
+    face_out = "face3_feifei_out.png"
 
     face_finder = cv2.CascadeClassifier(HAAR_DIR + "haarcascade_frontalface_default.xml")
     eye_finder  = cv2.CascadeClassifier(HAAR_DIR + "haarcascade_eye.xml")
@@ -99,6 +99,7 @@ def test_detector_dir_get_bounds():
 
 
 if __name__ == "__main__":
+#    original_demo()
     test_detector_dir_get_bounds()
 
 

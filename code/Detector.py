@@ -31,7 +31,7 @@ class Detector(object):
         """
         # all the files (not dirs) under dir_path that end in .jpg
         filenames = [dir_path + fn for fn in next(walk(dir_path))[2] if fn[-4:] == '.jpg']
-        return [self.get_bounds(fn) for fn in filenames]
+        return [self.get_bounds_horizontal(fn) for fn in filenames]
         """
         output_bounds = []
         counter = 0
@@ -55,6 +55,20 @@ class Detector(object):
         display = True if save_path is not None else False
 
         self._load_image(input_path, get_color=display)
+        try:
+            bounds = self._get_face_and_eyes(draw=display)
+        except GazelleError as gerr:
+            # print gerr.message
+            return None
+        
+        if display: self._save_image(save_path)
+        return bounds
+
+    def get_bounds_horizontal(self, input_path, save_path=None):
+        display = True if save_path is not None else False
+        self._load_image(input_path, get_color=display)
+        if (self.img_mono.shape[0] != 480):
+            return None
         try:
             bounds = self._get_face_and_eyes(draw=display)
         except GazelleError as gerr:
