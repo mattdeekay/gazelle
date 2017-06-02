@@ -1,3 +1,12 @@
+"""
+Stanford CS 231A Computer Vision
+Owen Wang, Natalie Ng, Matthew Kim
+
+Same as the one taken from |mnist_sample_cnn.py|, but tweaked to fit
+GazeCapture's iTracker CNN.
+"""
+
+
 
 # ??????
 from __future__ import absolute_import
@@ -11,16 +20,23 @@ import tensorflow as tf
 from tensorflow.contrib import learn
 from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_fn_lib
 
-# ??????
+
 tf.logging.set_verbosity(tf.logging.INFO)
 
 
 def cnn_model_fn(features, labels, mode):
-  """Model function for CNN."""
+
   # Input Layer
   # Reshape X to 4-D tensor: [batch_size, width, height, channels]
   # MNIST images are 28x28 pixels, and have one color channel
-  input_layer = tf.reshape(features, [-1, 28, 28, 1])
+  
+  # input_layer = tf.reshape(features, [-1, 28, 28, 1])
+  
+  # GC Input Layer
+  # Reshape to: [batch_size, 4, width=224, height=224, channels=3]
+  # the 4 things are below, each 224 x 224
+  right_eye_input, left_eye_input, face_input, face_grid = features
+
 
   # Convolutional Layer #1
   # Computes 32 features using a 5x5 filter with ReLU activation.
@@ -137,7 +153,9 @@ def main(unused_argv):
       steps=20000,
       monitors=[logging_hook])
   """
-  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:146: calling fit (from tensorflow.contrib.learn.python.learn.estimators.estimator) with y is deprecated and will be removed after 2016-12-01.
+  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:146: calling fit
+      (from tensorflow.contrib.learn.python.learn.estimators.estimator)
+      with y is deprecated and will be removed after 2016-12-01.
   Instructions for updating:
   Estimator is decoupled from Scikit Learn interface by moving into
   separate class SKCompat. Arguments x, y and batch_size are only
@@ -145,7 +163,9 @@ def main(unused_argv):
   Example conversion:
   est = Estimator(...) -> est = SKCompat(Estimator(...))
   
-  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:146: calling fit (from tensorflow.contrib.learn.python.learn.estimators.estimator) with x is deprecated and will be removed after 2016-12-01.
+  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:146: calling fit
+      (from tensorflow.contrib.learn.python.learn.estimators.estimator)
+      with x is deprecated and will be removed after 2016-12-01.
   Instructions for updating:
   Estimator is decoupled from Scikit Learn interface by moving into
   separate class SKCompat. Arguments x, y and batch_size are only
@@ -153,7 +173,9 @@ def main(unused_argv):
   Example conversion:
   est = Estimator(...) -> est = SKCompat(Estimator(...))
   
-  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:146: calling fit (from tensorflow.contrib.learn.python.learn.estimators.estimator) with batch_size is deprecated and will be removed after 2016-12-01.
+  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:146: calling fit
+      (from tensorflow.contrib.learn.python.learn.estimators.estimator)
+      with batch_size is deprecated and will be removed after 2016-12-01.
   Instructions for updating:
   Estimator is decoupled from Scikit Learn interface by moving into
   separate class SKCompat. Arguments x, y and batch_size are only
@@ -176,7 +198,9 @@ def main(unused_argv):
   eval_results = mnist_classifier.evaluate(
       x=eval_data, y=eval_labels, metrics=metrics)
   """
-  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:157: calling evaluate (from tensorflow.contrib.learn.python.learn.estimators.estimator) with y is deprecated and will be removed after 2016-12-01.
+  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:157: calling evaluate
+      (from tensorflow.contrib.learn.python.learn.estimators.estimator)
+      with y is deprecated and will be removed after 2016-12-01.
   Instructions for updating:
   Estimator is decoupled from Scikit Learn interface by moving into
   separate class SKCompat. Arguments x, y and batch_size are only
@@ -184,7 +208,9 @@ def main(unused_argv):
   Example conversion:
   est = Estimator(...) -> est = SKCompat(Estimator(...))
 
-  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:157: calling evaluate (from tensorflow.contrib.learn.python.learn.estimators.estimator) with x is deprecated and will be removed after 2016-12-01.
+  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:157: calling evaluate
+      (from tensorflow.contrib.learn.python.learn.estimators.estimator)
+      with x is deprecated and will be removed after 2016-12-01.
   Instructions for updating:
   Estimator is decoupled from Scikit Learn interface by moving into
   separate class SKCompat. Arguments x, y and batch_size are only
@@ -193,7 +219,7 @@ def main(unused_argv):
   est = Estimator(...) -> est = SKCompat(Estimator(...))
   """
 
-  
+
   print(eval_results)
 
 
