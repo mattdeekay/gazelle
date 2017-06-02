@@ -110,6 +110,9 @@ def cnn_model_fn(features, labels, mode):
 
 def main(unused_argv):
   # Load training and eval data
+
+  # This needs to be changed to however we want to load the GC training and eval data
+
   mnist = learn.datasets.load_dataset("mnist")
   train_data = mnist.train.images  # Returns np.array
   train_labels = np.asarray(mnist.train.labels, dtype=np.int32)
@@ -133,7 +136,35 @@ def main(unused_argv):
       batch_size=100,
       steps=20000,
       monitors=[logging_hook])
+  """
+  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:146: calling fit (from tensorflow.contrib.learn.python.learn.estimators.estimator) with y is deprecated and will be removed after 2016-12-01.
+  Instructions for updating:
+  Estimator is decoupled from Scikit Learn interface by moving into
+  separate class SKCompat. Arguments x, y and batch_size are only
+  available in the SKCompat class, Estimator will only accept input_fn.
+  Example conversion:
+  est = Estimator(...) -> est = SKCompat(Estimator(...))
+  
+  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:146: calling fit (from tensorflow.contrib.learn.python.learn.estimators.estimator) with x is deprecated and will be removed after 2016-12-01.
+  Instructions for updating:
+  Estimator is decoupled from Scikit Learn interface by moving into
+  separate class SKCompat. Arguments x, y and batch_size are only
+  available in the SKCompat class, Estimator will only accept input_fn.
+  Example conversion:
+  est = Estimator(...) -> est = SKCompat(Estimator(...))
+  
+  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:146: calling fit (from tensorflow.contrib.learn.python.learn.estimators.estimator) with batch_size is deprecated and will be removed after 2016-12-01.
+  Instructions for updating:
+  Estimator is decoupled from Scikit Learn interface by moving into
+  separate class SKCompat. Arguments x, y and batch_size are only
+  available in the SKCompat class, Estimator will only accept input_fn.
+  Example conversion:
+  est = Estimator(...) -> est = SKCompat(Estimator(...))
+  """
 
+
+
+  # Make our own GC accuracy metric (euclidean distance)
   # Configure the accuracy metric for evaluation
   metrics = {
       "accuracy":
@@ -144,6 +175,25 @@ def main(unused_argv):
   # Evaluate the model and print results
   eval_results = mnist_classifier.evaluate(
       x=eval_data, y=eval_labels, metrics=metrics)
+  """
+  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:157: calling evaluate (from tensorflow.contrib.learn.python.learn.estimators.estimator) with y is deprecated and will be removed after 2016-12-01.
+  Instructions for updating:
+  Estimator is decoupled from Scikit Learn interface by moving into
+  separate class SKCompat. Arguments x, y and batch_size are only
+  available in the SKCompat class, Estimator will only accept input_fn.
+  Example conversion:
+  est = Estimator(...) -> est = SKCompat(Estimator(...))
+
+  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:157: calling evaluate (from tensorflow.contrib.learn.python.learn.estimators.estimator) with x is deprecated and will be removed after 2016-12-01.
+  Instructions for updating:
+  Estimator is decoupled from Scikit Learn interface by moving into
+  separate class SKCompat. Arguments x, y and batch_size are only
+  available in the SKCompat class, Estimator will only accept input_fn.
+  Example conversion:
+  est = Estimator(...) -> est = SKCompat(Estimator(...))
+  """
+
+  
   print(eval_results)
 
 
