@@ -13,3 +13,4 @@ toy_dataset/
 # specific files #
 ##################
 sftp-config.json
+MNIST-data

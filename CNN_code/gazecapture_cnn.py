@@ -33,9 +33,10 @@ def cnn_model_fn(features, labels, mode):
   # input_layer = tf.reshape(features, [-1, 28, 28, 1])
   
   # GC Input Layer
-  # Reshape to: [batch_size, 4, width=224, height=224, channels=3]
+  # features.shape: [batch_size, 4, width=224, height=224, channels=3]
   # the 4 things are below, each 224 x 224
   right_eye_input, left_eye_input, face_input, face_grid = features
+  
 
 
   # Convolutional Layer #1
