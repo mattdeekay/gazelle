@@ -31,7 +31,12 @@ def cnn_model_fn(features, labels, mode):
   # Input Layer
   # Reshape X to 4-D tensor: [batch_size, width, height, channels]
   # MNIST images are 28x28 pixels, and have one color channel
+<<<<<<< HEAD
 
+=======
+  print(features)
+  quit()
+>>>>>>> 9cbc5b14cd51fecc95aad1183154369398b1bca3
   input_layer = tf.reshape(features, [-1, 28, 28, 1])
 
   # Convolutional Layer #1
