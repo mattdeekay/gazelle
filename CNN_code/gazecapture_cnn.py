@@ -6,9 +6,6 @@ Same as the one taken from |mnist_sample_cnn.py|, but tweaked to fit
 GazeCapture's iTracker CNN.
 """
 
-
-
-# ??????
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -16,12 +13,12 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
-# ??????
 from tensorflow.contrib import learn
 from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_fn_lib
 
+# Specific to Gazelle.
 import pickle
-
+from gazelle_utils import *
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -206,7 +203,8 @@ def cnn_model_fn(features, labels, mode):
   # What to do here? Unsure, may be wrong. Do we need anything else in the dictionary?
   predictions = {
       "coordinates": xy_output,
-      "squared diff": tf.squared_difference(labels, xy_output)
+      "squared diff": tf.squared_difference(labels, xy_output,
+                                            name="squared_diff_tensor")
   }
 
   # Done: Return a ModelFnOps object
@@ -218,101 +216,44 @@ def cnn_model_fn(features, labels, mode):
 
 
 def main(unused_argv):
-
+  # We are testing the Gazelle CNN on the *tiny* dataset right now!
+  # This means: train_data_tiny, train_labels_tiny, eval_data_tiny, eval_labels_tiny
   # Load training and eval data from GazeCapture dataset
-
-
-  mnist = learn.datasets.load_dataset("mnist")
-  train_data = mnist.train.images  # Returns np.array
-  train_labels = np.asarray(mnist.train.labels, dtype=np.int32)
-  eval_data = mnist.test.images  # Returns np.array
-  eval_labels = np.asarray(mnist.test.labels, dtype=np.int32)
+  train_data = pickle.load(open(CNN_DATA_ROOT + 'train_data_tiny.pkl', 'rb'))
+  train_labels = pickle.load(open(CNN_DATA_ROOT + 'train_labels_tiny.pkl', 'rb'))
+  eval_data = pickle.load(open(CNN_DATA_ROOT + 'eval_data_tiny.pkl', 'rb'))
+  eval_labels = pickle.load(open(CNN_DATA_ROOT + 'eval_labels_tiny.pkl', 'rb'))
 
   # Create the Estimator
-  mnist_classifier = learn.Estimator(
+  gazelle_estimator = learn.Estimator(
       model_fn=cnn_model_fn, model_dir="/tmp/gazelle_convnet_model")
 
-  # Set up logging for predictions
-  # Log the values in the "Softmax" tensor with label "probabilities"
-  tensors_to_log = {"coordinates": "softmax_tensor"}
+  # Set up logging for when the CNN trains
+  # Log the values in the tensor named under predictions "squared_diff_tensor"
+  #   with label "coords sq.diff loss"
+  tensors_to_log = {"coords sq.diff loss": "squared_diff_tensor"}
   logging_hook = tf.train.LoggingTensorHook(
-      tensors=tensors_to_log, every_n_iter=50)
+      tensors=tensors_to_log, every_n_iter=3)
 
   # Train the model
-  mnist_classifier.fit(
+  gazelle_estimator.fit(
       x=train_data,
       y=train_labels,
-      batch_size=100, # Change these parameters
-      steps=20000,
+      batch_size=3,
+      steps=8,
       monitors=[logging_hook])
-  """
-  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:146: calling fit
-      (from tensorflow.contrib.learn.python.learn.estimators.estimator)
-      with y is deprecated and will be removed after 2016-12-01.
-  Instructions for updating:
-  Estimator is decoupled from Scikit Learn interface by moving into
-  separate class SKCompat. Arguments x, y and batch_size are only
-  available in the SKCompat class, Estimator will only accept input_fn.
-  Example conversion:
-  est = Estimator(...) -> est = SKCompat(Estimator(...))
-  
-  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:146: calling fit
-      (from tensorflow.contrib.learn.python.learn.estimators.estimator)
-      with x is deprecated and will be removed after 2016-12-01.
-  Instructions for updating:
-  Estimator is decoupled from Scikit Learn interface by moving into
-  separate class SKCompat. Arguments x, y and batch_size are only
-  available in the SKCompat class, Estimator will only accept input_fn.
-  Example conversion:
-  est = Estimator(...) -> est = SKCompat(Estimator(...))
-  
-  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:146: calling fit
-      (from tensorflow.contrib.learn.python.learn.estimators.estimator)
-      with batch_size is deprecated and will be removed after 2016-12-01.
-  Instructions for updating:
-  Estimator is decoupled from Scikit Learn interface by moving into
-  separate class SKCompat. Arguments x, y and batch_size are only
-  available in the SKCompat class, Estimator will only accept input_fn.
-  Example conversion:
-  est = Estimator(...) -> est = SKCompat(Estimator(...))
-  """
 
-
-
-  # Make our own GC accuracy metric (euclidean distance)
+  # Make our own GC accuracy metric
   # Configure the accuracy metric for evaluation
   metrics = {
-      "accuracy":
+      "Gazelle prediction accuracy":
           learn.MetricSpec(
-              metric_fn=tf.metrics.accuracy, prediction_key="classes"),
+              metric_fn=tf.metrics.mean_absolute_error, prediction_key="coordinates")
   }
 
   # Evaluate the model and print results
-  eval_results = mnist_classifier.evaluate(
+  eval_results = gazelle_estimator.evaluate(
       x=eval_data, y=eval_labels, metrics=metrics)
-  """
-  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:157: calling evaluate
-      (from tensorflow.contrib.learn.python.learn.estimators.estimator)
-      with y is deprecated and will be removed after 2016-12-01.
-  Instructions for updating:
-  Estimator is decoupled from Scikit Learn interface by moving into
-  separate class SKCompat. Arguments x, y and batch_size are only
-  available in the SKCompat class, Estimator will only accept input_fn.
-  Example conversion:
-  est = Estimator(...) -> est = SKCompat(Estimator(...))
-
-  WARNING:tensorflow:From CNN_code/mnist_sample_cnn.py:157: calling evaluate
-      (from tensorflow.contrib.learn.python.learn.estimators.estimator)
-      with x is deprecated and will be removed after 2016-12-01.
-  Instructions for updating:
-  Estimator is decoupled from Scikit Learn interface by moving into
-  separate class SKCompat. Arguments x, y and batch_size are only
-  available in the SKCompat class, Estimator will only accept input_fn.
-  Example conversion:
-  est = Estimator(...) -> est = SKCompat(Estimator(...))
-  """
-
-
   print(eval_results)
 
 
