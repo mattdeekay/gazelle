@@ -20,115 +20,207 @@ import tensorflow as tf
 from tensorflow.contrib import learn
 from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_fn_lib
 
+import pickle
+
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
 
 def cnn_model_fn(features, labels, mode):
 
-  # Input Layer
-  # Reshape X to 4-D tensor: [batch_size, width, height, channels]
-  # MNIST images are 28x28 pixels, and have one color channel
-  
-  # input_layer = tf.reshape(features, [-1, 28, 28, 1])
-  
+
   # GC Input Layer
-  # features.shape: [batch_size, 4, width=224, height=224, channels=3]
-  # the 4 things are below, each 224 x 224
-  right_eye_input, left_eye_input, face_input, face_grid = features
-  
+  # |features| is a 5-D Tensor, (num_batches, input_idx, 144, 144, 3)
+  # the last 3 dimensions are a 144x144 color image, 3 channels
+  # we have 4 inputs in the order: right eye, left eye, face, face grid.
+  #   Each one must be [batch_size, width, height, channels] = num_batches x 144 x 144 x 3.
+
+  # Unpacking the 4 inputs.
+  # tf.slice(tensor, start, lengths)
+  R_eye = tf.squeeze( tf.slice(features, [0,0,0,0,0], [-1, 1, 144, 144, 3])) # shape (num, 144,144,3)
+  L_eye = tf.squeeze( tf.slice(features, [0,1,0,0,0], [-1, 1, 144, 144, 3]))
+  face  = tf.squeeze( tf.slice(features, [0,2,0,0,0], [-1, 1, 144, 144, 3]))
+  fgrid = tf.squeeze( tf.slice(features, [0,3,0,0,0], [-1, 1, 144, 144, 3]))
 
 
   # Convolutional Layer #1
-  # Computes 32 features using a 5x5 filter with ReLU activation.
-  # Padding is added to preserve width and height.
-  # Input Tensor Shape: [batch_size, 28, 28, 1]
-  # Output Tensor Shape: [batch_size, 28, 28, 32]
-  conv1 = tf.layers.conv2d(
-      inputs=input_layer,
-      filters=32,
-      kernel_size=[5, 5],
+  # [Nvm, now added Relu again]
+  # Input Tensor Shape: [batch_size, 144, 144, 3]
+  # Output Tensor Shape: [batch_size, 144, 144, 96]
+  conv_ER1 = tf.layers.conv2d(
+      inputs=R_eye,
+      filters=96,
+      kernel_size=[11,11],
+      padding="same",
+      activation=tf.nn.relu)
+  conv_EL1 = tf.layers.conv2d(
+      inputs=L_eye,
+      filters=96,
+      kernel_size=[11,11],
+      padding="same",
+      activation=tf.nn.relu)
+  conv_F1  = tf.layers.conv2d(
+      inputs=face,
+      filters=96,
+      kernel_size=[11,11],
       padding="same",
       activation=tf.nn.relu)
 
-  # Pooling Layer #1
-  # First max pooling layer with a 2x2 filter and stride of 2
-  # Input Tensor Shape: [batch_size, 28, 28, 32]
-  # Output Tensor Shape: [batch_size, 14, 14, 32]
-  pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[2, 2], strides=2)
+
+  # Add a pooling layer
+
 
   # Convolutional Layer #2
-  # Computes 64 features using a 5x5 filter.
-  # Padding is added to preserve width and height.
-  # Input Tensor Shape: [batch_size, 14, 14, 32]
-  # Output Tensor Shape: [batch_size, 14, 14, 64]
-  conv2 = tf.layers.conv2d(
-      inputs=pool1,
-      filters=64,
-      kernel_size=[5, 5],
+  # Input Tensor Shape: [batch_size, 144, 144, 96]
+  # Output Tensor Shape: [batch_size, 144, 144, 256]
+  conv_ER2 = tf.layers.conv2d(
+      inputs=conv_ER1,
+      filters=256,
+      kernel_size=[5,5],
+      padding="same",
+      activation=tf.nn.relu)
+  conv_EL2 = tf.layers.conv2d(
+      inputs=conv_EL1,
+      filters=256,
+      kernel_size=[5,5],
+      padding="same",
+      activation=tf.nn.relu)
+  conv_F2  = tf.layers.conv2d(
+      inputs=conv_F1,
+      filters=256,
+      kernel_size=[5,5],
       padding="same",
       activation=tf.nn.relu)
 
-  # Pooling Layer #2
-  # Second max pooling layer with a 2x2 filter and stride of 2
-  # Input Tensor Shape: [batch_size, 14, 14, 64]
-  # Output Tensor Shape: [batch_size, 7, 7, 64]
-  pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
+  # Convolutional Layer #3
+  # Input Tensor Shape: [batch_size, 144, 144, 256]
+  # Output Tensor Shape: [batch_size, 144, 144, 384]
+  conv_ER3 = tf.layers.conv2d(
+      inputs=conv_ER2,
+      filters=384,
+      kernel_size=[3,3],
+      padding="same",
+      activation=tf.nn.relu)
+  conv_EL3 = tf.layers.conv2d(
+      inputs=conv_EL2,
+      filters=384,
+      kernel_size=[3,3],
+      padding="same",
+      activation=tf.nn.relu)
+  conv_F3  = tf.layers.conv2d(
+      inputs=conv_F2,
+      filters=384,
+      kernel_size=[3,3],
+      padding="same",
+      activation=tf.nn.relu)
 
-  # Flatten tensor into a batch of vectors
-  # Input Tensor Shape: [batch_size, 7, 7, 64]
-  # Output Tensor Shape: [batch_size, 7 * 7 * 64]
-  pool2_flat = tf.reshape(pool2, [-1, 7 * 7 * 64])
+  # Add a pooling layer
 
-  # Dense Layer
-  # Densely connected layer with 1024 neurons
-  # Input Tensor Shape: [batch_size, 7 * 7 * 64]
-  # Output Tensor Shape: [batch_size, 1024]
-  dense = tf.layers.dense(inputs=pool2_flat, units=1024, activation=tf.nn.relu)
 
-  # Add dropout operation; 0.6 probability that element will be kept
-  dropout = tf.layers.dropout(
-      inputs=dense, rate=0.4, training=mode == learn.ModeKeys.TRAIN)
+  # Convolutional Layer #4
+  # Input Tensor Shape: [batch_size, 144, 144, 384]
+  # Output Tensor Shape: [batch_size, 144, 144, 64]
+  conv_ER4 = tf.layers.conv2d(
+      inputs=conv_ER3,
+      filters=64,
+      kernel_size=[1,1],
+      padding="same",
+      activation=tf.nn.relu)
+  conv_EL4 = tf.layers.conv2d(
+      inputs=conv_EL3,
+      filters=64,
+      kernel_size=[1,1],
+      padding="same",
+      activation=tf.nn.relu)
+  conv_F4  = tf.layers.conv2d(
+      inputs=conv_F3,
+      filters=64,
+      kernel_size=[1,1],
+      padding="same",
+      activation=tf.nn.relu)
 
-  # Logits layer
-  # Input Tensor Shape: [batch_size, 1024]
-  # Output Tensor Shape: [batch_size, 10]
-  logits = tf.layers.dense(inputs=dropout, units=10)
+
+  # ----------------------------------
+
+  # Dense Layers: Eyes
+  # Flatten tensors into a batch of vectors, then feed to dense layer
+  # For each (of the 2 eyes):
+  #   Input Tensor Shape (flatten): [batch_size, 144, 144, 64]
+  #   Output Tensor Shape (flatten): [batch_size, 144 * 144 * 64]
+  # Concatenate:
+  #   Final Output Tensor Shape: [batch_size, 144 * 144 * 64 * 2]
+
+  # Dense Layer Eyes: 128 units
+  ER_flat = tf.reshape(conv_ER4, [-1, 144 * 144 * 64])
+  EL_flat = tf.reshape(conv_EL4, [-1, 144 * 144 * 64])
+  eye_flat = tf.concat([ER_flat, EL_flat], axis=1) # concatenate the two along axis=1
+  dense_eyes = tf.layers.dense(inputs=eye_flat, units=128, activation=tf.nn.relu)
+
+  # Dense Layers: Face. 128, 64
+  F_flat = tf.reshape(conv_F4, [-1, 144 * 144 * 64])
+  # Dense Layer Face 1: 128 units
+  dense_face1 = tf.layers.dense(inputs=F_flat, units=128, activation=tf.nn.relu)
+  # Dense Layer Face 2: 64 units
+  dense_face2 = tf.layers.dense(inputs=dense_face1, units=64, activation=tf.nn.relu)
+
+  # Dense Layers: Face Grid boolean mask
+  #   fully-connected layers reading the face grid that specifices face location in image
+  fgrid_mask = tf.squeeze( tf.slice(fgrid, [0,0,0,0], [-1, 144, 144, 1])) # shape [batch_size, 144,144]
+  fgrid_flat = tf.reshape(fgrid_mask, [-1, 144 * 144])
+  # Dense Layer Face-grid 1: 256 units
+  dense_fgrid1 = tf.layers.dense(inputs=fgrid_flat, units=256, activation=tf.nn.relu)
+  # Dense Layer Face-grid 1: 128 units
+  dense_fgrid2 = tf.layers.dense(inputs=dense_fgrid1, units=128, activation=tf.nn.relu)
+
+
+  # Final Dense Layers
+  #   concatenate tensors: eyes, face, face-grid.
+  combined_flat = tf.concat([dense_eyes, dense_face2, dense_fgrid2], axis=1) # shape (batch_size, ?N_features)
+  dense_final = tf.layers.dense(inputs=combined_flat, units=128, activation=tf.nn.relu)
+  xy_output = tf.layers.dense(inputs=dense_final, units=2) # (batch_size, 2) <- should be that.
+  
+  # Debugging:
+  # print(xy_output)
+
+  
+  # -------------------------------------------------
 
   loss = None
   train_op = None
 
-  # Calculate Loss (for both TRAIN and EVAL modes)
+  # 1. Calculate Loss (for both TRAIN and EVAL modes)
   if mode != learn.ModeKeys.INFER:
-    onehot_labels = tf.one_hot(indices=tf.cast(labels, tf.int32), depth=10)
-    loss = tf.losses.softmax_cross_entropy(
-        onehot_labels=onehot_labels, logits=logits)
+    loss = tf.losses.mean_square_error(labels=labels, predictions=xy_output)
 
-  # Configure the Training Op (for TRAIN mode)
+  # 2. Configure the Training Op (for TRAIN mode)
   if mode == learn.ModeKeys.TRAIN:
     train_op = tf.contrib.layers.optimize_loss(
         loss=loss,
         global_step=tf.contrib.framework.get_global_step(),
         learning_rate=0.001,
         optimizer="SGD")
+        #decay_rate=tf.??? Can try to use tf.train.exponential_decay
 
-  # Generate Predictions
+  # 3. Generate Predictions
+  # Remember, |xy_output| returns a [batch_size, 2] Tensor.
+  # What to do here? Unsure, may be wrong. Do we need anything else in the dictionary?
   predictions = {
-      "classes": tf.argmax(
-          input=logits, axis=1),
-      "probabilities": tf.nn.softmax(
-          logits, name="softmax_tensor")
+      "coordinates": xy_output,
+      "squared diff": tf.squared_difference(labels, xy_output)
   }
 
-  # Return a ModelFnOps object
+  # Done: Return a ModelFnOps object
   return model_fn_lib.ModelFnOps(
       mode=mode, predictions=predictions, loss=loss, train_op=train_op)
 
 
-def main(unused_argv):
-  # Load training and eval data
+###############################
 
-  # This needs to be changed to however we want to load the GC training and eval data
+
+def main(unused_argv):
+
+  # Load training and eval data from GazeCapture dataset
+
 
   mnist = learn.datasets.load_dataset("mnist")
   train_data = mnist.train.images  # Returns np.array
@@ -138,11 +230,11 @@ def main(unused_argv):
 
   # Create the Estimator
   mnist_classifier = learn.Estimator(
-      model_fn=cnn_model_fn, model_dir="/tmp/mnist_convnet_model")
+      model_fn=cnn_model_fn, model_dir="/tmp/gazelle_convnet_model")
 
   # Set up logging for predictions
   # Log the values in the "Softmax" tensor with label "probabilities"
-  tensors_to_log = {"probabilities": "softmax_tensor"}
+  tensors_to_log = {"coordinates": "softmax_tensor"}
   logging_hook = tf.train.LoggingTensorHook(
       tensors=tensors_to_log, every_n_iter=50)
 
@@ -150,7 +242,7 @@ def main(unused_argv):
   mnist_classifier.fit(
       x=train_data,
       y=train_labels,
-      batch_size=100,
+      batch_size=100, # Change these parameters
       steps=20000,
       monitors=[logging_hook])
   """
