@@ -64,34 +64,48 @@ def cnn_model_fn(features, labels, mode):
       activation=tf.nn.relu)
 
 
-  # Add a pooling layer
-
+  # Pooling Layer 1
+  # Input Tensor Shape: [batch_size, 144, 144, 96]
+  # Output Tensor Shape: [batch_size, 72, 72, 96]
+  conv_ER1_pooled = tf.layers.max_pooling2d(
+      inputs=conv_ER1,
+      pool_size=[2,2],
+      strides=2)
+  conv_EL1_pooled = tf.layers.max_pooling2d(
+      inputs=conv_EL1,
+      pool_size=[2,2],
+      strides=2)
+  conv_F1_pooled = tf.layers.max_pooling2d(
+      inputs=conv_F1,
+      pool_size=[2,2],
+      strides=2)
+    
 
   # Convolutional Layer #2
-  # Input Tensor Shape: [batch_size, 144, 144, 96]
-  # Output Tensor Shape: [batch_size, 144, 144, 256]
+  # Input Tensor Shape: [batch_size, 72, 72, 96]
+  # Output Tensor Shape: [batch_size, 72, 72, 256]
   conv_ER2 = tf.layers.conv2d(
-      inputs=conv_ER1,
+      inputs=conv_ER1_pooled,
       filters=256,
       kernel_size=[5,5],
       padding="same",
       activation=tf.nn.relu)
   conv_EL2 = tf.layers.conv2d(
-      inputs=conv_EL1,
+      inputs=conv_EL1_pooled,
       filters=256,
       kernel_size=[5,5],
       padding="same",
       activation=tf.nn.relu)
   conv_F2  = tf.layers.conv2d(
-      inputs=conv_F1,
+      inputs=conv_F1_pooled,
       filters=256,
       kernel_size=[5,5],
       padding="same",
       activation=tf.nn.relu)
 
   # Convolutional Layer #3
-  # Input Tensor Shape: [batch_size, 144, 144, 256]
-  # Output Tensor Shape: [batch_size, 144, 144, 384]
+  # Input Tensor Shape: [batch_size, 72, 72, 256]
+  # Output Tensor Shape: [batch_size, 72, 72, 384]
   conv_ER3 = tf.layers.conv2d(
       inputs=conv_ER2,
       filters=384,
@@ -111,26 +125,40 @@ def cnn_model_fn(features, labels, mode):
       padding="same",
       activation=tf.nn.relu)
 
-  # Add a pooling layer
-
+  # Pooling Layer 2
+  # Input Tensor Shape: [batch_size, 72, 72, 384]
+  # Output Tensor Shape: [batch_size, 36, 36, 384]
+  conv_ER3_pooled = tf.layers.max_pooling2d(
+      inputs=conv_ER3,
+      pool_size=[2,2],
+      strides=2)
+  conv_EL3_pooled = tf.layers.max_pooling2d(
+      inputs=conv_EL3,
+      pool_size=[2,2],
+      strides=2)
+  conv_F3_pooled  = tf.layers.max_pooling2d(
+      inputs=conv_F3,
+      pool_size=[2,2],
+      strides=2)
+    
 
   # Convolutional Layer #4
-  # Input Tensor Shape: [batch_size, 144, 144, 384]
-  # Output Tensor Shape: [batch_size, 144, 144, 64]
+  # Input Tensor Shape: [batch_size, 36, 36, 384]
+  # Output Tensor Shape: [batch_size, 36, 36, 64]
   conv_ER4 = tf.layers.conv2d(
-      inputs=conv_ER3,
+      inputs=conv_ER3_pooled,
       filters=64,
       kernel_size=[1,1],
       padding="same",
       activation=tf.nn.relu)
   conv_EL4 = tf.layers.conv2d(
-      inputs=conv_EL3,
+      inputs=conv_EL3_pooled,
       filters=64,
       kernel_size=[1,1],
       padding="same",
       activation=tf.nn.relu)
   conv_F4  = tf.layers.conv2d(
-      inputs=conv_F3,
+      inputs=conv_F3_pooled,
       filters=64,
       kernel_size=[1,1],
       padding="same",
@@ -142,39 +170,43 @@ def cnn_model_fn(features, labels, mode):
   # Dense Layers: Eyes
   # Flatten tensors into a batch of vectors, then feed to dense layer
   # For each (of the 2 eyes):
-  #   Input Tensor Shape (flatten): [batch_size, 144, 144, 64]
-  #   Output Tensor Shape (flatten): [batch_size, 144 * 144 * 64]
+  #   Input Tensor Shape (flatten): [batch_size, 36, 36, 64]
+  #   Output Tensor Shape (flatten): [batch_size, 36 * 36 * 64]
   # Concatenate:
-  #   Final Output Tensor Shape: [batch_size, 144 * 144 * 64 * 2]
+  #   Final Output Tensor Shape: [batch_size, 36 * 36 * 64 * 2]
 
   # Dense Layer Eyes: 128 units
-  ER_flat = tf.reshape(conv_ER4, [-1, 144 * 144 * 64])
-  EL_flat = tf.reshape(conv_EL4, [-1, 144 * 144 * 64])
-  eye_flat = tf.concat([ER_flat, EL_flat], axis=1) # concatenate the two along axis=1
+  ER_flat = tf.reshape(conv_ER4, [-1, 36 * 36 * 64])
+  EL_flat = tf.reshape(conv_EL4, [-1, 36 * 36 * 64])
+  eye_flat = tf.concat([ER_flat, EL_flat], axis=1)
   dense_eyes = tf.layers.dense(inputs=eye_flat, units=128, activation=tf.nn.relu)
 
   # Dense Layers: Face. 128, 64
-  F_flat = tf.reshape(conv_F4, [-1, 144 * 144 * 64])
+  F_flat = tf.reshape(conv_F4, [-1, 36 * 36 * 64])
   # Dense Layer Face 1: 128 units
   dense_face1 = tf.layers.dense(inputs=F_flat, units=128, activation=tf.nn.relu)
   # Dense Layer Face 2: 64 units
   dense_face2 = tf.layers.dense(inputs=dense_face1, units=64, activation=tf.nn.relu)
 
   # Dense Layers: Face Grid boolean mask
-  #   fully-connected layers reading the face grid that specifices face location in image
+  #   Post-pooling Tensor SHape: [batch_size, 72, 72]
   fgrid_mask = tf.squeeze( tf.slice(fgrid, [0,0,0,0], [-1, 144, 144, 1])) # shape [batch_size, 144,144]
-  fgrid_flat = tf.reshape(fgrid_mask, [-1, 144 * 144])
+  fgrid_pooled = tf.layers.max_pooling2d(
+      inputs=fgrid_mask,
+      pool_size=[2,2],
+      strides=2)
+  fgrid_flat = tf.reshape(fgrid_pooled, [-1, 72 * 72])
   # Dense Layer Face-grid 1: 256 units
-  dense_fgrid1 = tf.layers.dense(inputs=fgrid_flat, units=256, activation=tf.nn.relu)
+  dense_fgrid1 = tf.layers.dense(inputs=fgrid_flat, units=128, activation=tf.nn.relu)
   # Dense Layer Face-grid 1: 128 units
-  dense_fgrid2 = tf.layers.dense(inputs=dense_fgrid1, units=128, activation=tf.nn.relu)
+  dense_fgrid2 = tf.layers.dense(inputs=dense_fgrid1, units=64, activation=tf.nn.relu)
 
 
   # Final Dense Layers
   #   concatenate tensors: eyes, face, face-grid.
-  combined_flat = tf.concat([dense_eyes, dense_face2, dense_fgrid2], axis=1) # shape (batch_size, ?N_features)
+  combined_flat = tf.concat([dense_eyes, dense_face2, dense_fgrid2], axis=1) # shape [batch_size, 128 + 64 + 64]
   dense_final = tf.layers.dense(inputs=combined_flat, units=128, activation=tf.nn.relu)
-  xy_output = tf.layers.dense(inputs=dense_final, units=2) # (batch_size, 2) <- should be that.
+  xy_output = tf.layers.dense(inputs=dense_final, units=2)
   
   # Debugging:
   # print(xy_output)
@@ -211,13 +243,12 @@ def cnn_model_fn(features, labels, mode):
   return model_fn_lib.ModelFnOps(
       mode=mode, predictions=predictions, loss=loss, train_op=train_op)
 
-
 ###############################
 
 
 def main(unused_argv):
-  # We are testing the Gazelle CNN on the *tiny* dataset right now!
-  # This means: train_data_tiny, train_labels_tiny, eval_data_tiny, eval_labels_tiny
+  # We are testing the Gazelle CNN on the *tiny* dataset right now:
+  # train_data_tiny, train_labels_tiny, eval_data_tiny, eval_labels_tiny
   # Load training and eval data from GazeCapture dataset
   train_data = pickle.load(open(CNN_DATA_ROOT + 'train_data_tiny.pkl', 'rb'))
   train_labels = pickle.load(open(CNN_DATA_ROOT + 'train_labels_tiny.pkl', 'rb'))
