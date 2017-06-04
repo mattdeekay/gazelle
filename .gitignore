@@ -3,7 +3,8 @@
 
 tensorflow_venv/
 toy_dataset/
-toy_CNN_data/
+toy_CNN_data/*
+
 # file types ignore #
 #####################
 *.swp
