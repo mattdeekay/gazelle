@@ -25,23 +25,27 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 def cnn_model_fn(features, labels, mode):
 
+  features = tf.cast(features, tf.float32)
+  # features = Tensor("Print:0", shape=(?, 144, 144, 3, 4), dtype=float32)
+
+  # For debugging
+  def tfprint(name, tensor):
+    print(name)
+    a = tf.Print(tensor, [tensor])
+    print(a)
 
   # GC Input Layer
-  # |features| is a 5-D Tensor, (num_batches, input_idx, 144, 144, 3)
-  # the last 3 dimensions are a 144x144 color image, 3 channels
-  # we have 4 inputs in the order: right eye, left eye, face, face grid.
-  #   Each one must be [batch_size, width, height, channels] = num_batches x 144 x 144 x 3.
+  # we have 4 inputs in the order: right eye, left eye, face, face grid (bound by dim #4 of value 4)
+  #   Each one is [batch_size, width, height, channels] = num_batches x 144 x 144 x 3.
 
-  # Unpacking the 4 inputs.
-  # tf.slice(tensor, start, lengths)
-  R_eye = tf.squeeze( tf.slice(features, [0,0,0,0,0], [-1, 1, 144, 144, 3])) # shape (num, 144,144,3)
-  L_eye = tf.squeeze( tf.slice(features, [0,1,0,0,0], [-1, 1, 144, 144, 3]))
-  face  = tf.squeeze( tf.slice(features, [0,2,0,0,0], [-1, 1, 144, 144, 3]))
-  fgrid = tf.squeeze( tf.slice(features, [0,3,0,0,0], [-1, 1, 144, 144, 3]))
+  R_eye = tf.squeeze(tf.slice(features, [0,0,0,0,0], [-1, 144, 144, 3, 1]), axis=4)
+  L_eye = tf.squeeze(tf.slice(features, [0,0,0,0,1], [-1, 144, 144, 3, 1]), axis=4)
+  face  = tf.squeeze(tf.slice(features, [0,0,0,0,2], [-1, 144, 144, 3, 1]), axis=4)
+  fgrid = tf.squeeze(tf.slice(features, [0,0,0,0,3], [-1, 144, 144, 3, 1]), axis=4)
+  # Tensor("Print_1:0", shape=(?, 1, 144, 144, 3), dtype=float32)
 
 
   # Convolutional Layer #1
-  # [Nvm, now added Relu again]
   # Input Tensor Shape: [batch_size, 144, 144, 3]
   # Output Tensor Shape: [batch_size, 144, 144, 96]
   conv_ER1 = tf.layers.conv2d(
@@ -62,6 +66,7 @@ def cnn_model_fn(features, labels, mode):
       kernel_size=[11,11],
       padding="same",
       activation=tf.nn.relu)
+  # Tensor("Print:0", shape=(?, 144, 144, 96), dtype=float32)
 
 
   # Pooling Layer 1
@@ -190,7 +195,7 @@ def cnn_model_fn(features, labels, mode):
 
   # Dense Layers: Face Grid boolean mask
   #   Post-pooling Tensor SHape: [batch_size, 72, 72]
-  fgrid_mask = tf.squeeze( tf.slice(fgrid, [0,0,0,0], [-1, 144, 144, 1])) # shape [batch_size, 144,144]
+  fgrid_mask = tf.slice(fgrid, [0,0,0,0], [-1, 144, 144, 1])
   fgrid_pooled = tf.layers.max_pooling2d(
       inputs=fgrid_mask,
       pool_size=[2,2],
@@ -207,9 +212,7 @@ def cnn_model_fn(features, labels, mode):
   combined_flat = tf.concat([dense_eyes, dense_face2, dense_fgrid2], axis=1) # shape [batch_size, 128 + 64 + 64]
   dense_final = tf.layers.dense(inputs=combined_flat, units=128, activation=tf.nn.relu)
   xy_output = tf.layers.dense(inputs=dense_final, units=2)
-  
-  # Debugging:
-  # print(xy_output)
+  # xy_output = Tensor("Print:0", shape=(?, 2), dtype=float32)
 
   
   # -------------------------------------------------
@@ -219,14 +222,14 @@ def cnn_model_fn(features, labels, mode):
 
   # 1. Calculate Loss (for both TRAIN and EVAL modes)
   if mode != learn.ModeKeys.INFER:
-    loss = tf.losses.mean_square_error(labels=labels, predictions=xy_output)
+    loss = tf.losses.mean_squared_error(labels=labels, predictions=xy_output)
 
   # 2. Configure the Training Op (for TRAIN mode)
   if mode == learn.ModeKeys.TRAIN:
     train_op = tf.contrib.layers.optimize_loss(
         loss=loss,
         global_step=tf.contrib.framework.get_global_step(),
-        learning_rate=0.001,
+        learning_rate=0.000001,
         optimizer="SGD")
         #decay_rate=tf.??? Can try to use tf.train.exponential_decay
 
@@ -235,7 +238,7 @@ def cnn_model_fn(features, labels, mode):
   # What to do here? Unsure, may be wrong. Do we need anything else in the dictionary?
   predictions = {
       "coordinates": xy_output,
-      "squared diff": tf.squared_difference(labels, xy_output,
+      "squared diff": tf.squared_difference(tf.cast(labels, tf.float32), xy_output,
                                             name="squared_diff_tensor")
   }
 
