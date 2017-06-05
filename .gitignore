@@ -6,6 +6,10 @@ toy_dataset/
 toy_CNN_data/*
 toy_CNN_data/
 toy_CNN_data
+
+tmp/*
+tmp/
+tmp
 # file types ignore #
 #####################
 *.swp
