@@ -22,17 +22,14 @@ from gazelle_utils import *
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
-
+# For debugging
+def tfprint(name, tensor):
+  print(name)
+  a = tf.Print(tensor, [tensor])
+  print(a)
+    
 def cnn_model_fn(features, labels, mode):
-
-  features = tf.cast(features, tf.float32)
   # features = Tensor("Print:0", shape=(?, 144, 144, 3, 4), dtype=float32)
-
-  # For debugging
-  def tfprint(name, tensor):
-    print(name)
-    a = tf.Print(tensor, [tensor])
-    print(a)
 
   # GC Input Layer
   # we have 4 inputs in the order: right eye, left eye, face, face grid (bound by dim #4 of value 4)
@@ -212,7 +209,7 @@ def cnn_model_fn(features, labels, mode):
   combined_flat = tf.concat([dense_eyes, dense_face2, dense_fgrid2], axis=1) # shape [batch_size, 128 + 64 + 64]
   dense_final = tf.layers.dense(inputs=combined_flat, units=128, activation=tf.nn.relu)
   xy_output = tf.layers.dense(inputs=dense_final, units=2)
-  # xy_output = Tensor("Print:0", shape=(?, 2), dtype=float32)
+  # Tensor("Print:0", shape=(?, 2), dtype=float32)
 
   
   # -------------------------------------------------
@@ -223,13 +220,14 @@ def cnn_model_fn(features, labels, mode):
   # 1. Calculate Loss (for both TRAIN and EVAL modes)
   if mode != learn.ModeKeys.INFER:
     loss = tf.losses.mean_squared_error(labels=labels, predictions=xy_output)
-
+    
   # 2. Configure the Training Op (for TRAIN mode)
   if mode == learn.ModeKeys.TRAIN:
     train_op = tf.contrib.layers.optimize_loss(
         loss=loss,
         global_step=tf.contrib.framework.get_global_step(),
-        learning_rate=0.001, # This might need to be smaller
+        # learning_rate=0.001 # This was original, when training against X/YPts it needs to be smaller below
+        learning_rate=0.00000001,
         optimizer="SGD")
         #decay_rate=tf.??? Can try to use tf.train.exponential_decay
 
@@ -237,7 +235,8 @@ def cnn_model_fn(features, labels, mode):
   # Remember, |xy_output| returns a [batch_size, 2] Tensor.
   # What is supposed to go in here? Unsure, may be wrong. Do we need anything else in the dictionary?
   predictions = {
-      "coordinates": tf.Print(xy_output, [xy_output], name="xy_units_output"), # The identity operation through Print
+      "loss": tf.Print(loss, [loss], name="loss_tensor"),
+      "coords delta": tf.subtract(xy_output, labels, name="delta_tensor"),
       "squared diff": tf.squared_difference(tf.cast(labels, tf.float32), xy_output,
                                             name="squared_diff_tensor")
   }
@@ -257,29 +256,23 @@ def main(unused_argv):
   train_labels = pickle.load(open(CNN_DATA_ROOT + 'train_labels_tiny.pkl', 'rb'))
   eval_data = pickle.load(open(CNN_DATA_ROOT + 'eval_data_tiny.pkl', 'rb'))
   eval_labels = pickle.load(open(CNN_DATA_ROOT + 'eval_labels_tiny.pkl', 'rb'))
-
-  # Debugging: Print out all the data and labels.
-  print (train_labels)
+  
+  # The data isn't the right type for now. Cast it to float32
+  train_data = train_data.astype('float32')
+  eval_data = eval_data.astype('float32')
+  train_labels = train_labels.astype('float32')
+  eval_labels = eval_labels.astype('float32')
 
   # Create the Estimator
   gazelle_estimator = learn.Estimator(
       model_fn=cnn_model_fn, model_dir="../tmp/gazelle_conv_model")
 
   # Set up logging for when the CNN trains
-  # Log the values in the tensor named under predictions "squared_diff_tensor"
-  #   with label "coords sq.diff loss"
-  tensors_to_log = {"coords": "xy_units_output",
-                    "sq.diff": "squared_diff_tensor"}
+  tensors_to_log = {"loss": "loss_tensor",
+                    "difference from actual": "delta_tensor",
+                    "sq.diff loss": "squared_diff_tensor"}
   logging_hook = tf.train.LoggingTensorHook(
-      tensors=tensors_to_log, every_n_iter=3)
-  """
-    When we were using XPts and YPts:
-    INFO:tensorflow:loss = 63360.7, step = 1
-    INFO:tensorflow:sq.diff coords = [[ 147468.921875     31324.9921875 ]
-     [  23763.97460938     697.4786377 ]
-     [ 151734.234375     25174.85546875]]
-    ERROR:tensorflow:Model diverged with loss = NaN.
-  """
+      tensors=tensors_to_log, every_n_iter=1)
 
   # Train the model
   gazelle_estimator.fit(
@@ -292,15 +285,21 @@ def main(unused_argv):
   # Make our own GC accuracy metric
   # Configure the accuracy metric for evaluation
   metrics = {
-      "Gazelle prediction accuracy":
+      "Gazelle prediction mean abs. error":
           learn.MetricSpec(
-              metric_fn=tf.metrics.mean_absolute_error, prediction_key="coordinates")
+              metric_fn=tf.metrics.mean_absolute_error, prediction_key="coords delta")
   }
 
   # Evaluate the model and print results
   eval_results = gazelle_estimator.evaluate(
       x=eval_data, y=eval_labels, metrics=metrics)
   print(eval_results)
+
+  # Very jank way to touch a file, so that if we come back to instance-1 and check the dir,
+  #   we can tell the CNN finished.
+  f = open("we-are-finished.txt", 'w')
+  f.write("CNN finished")
+  f.close()
 
 
 if __name__ == "__main__":
