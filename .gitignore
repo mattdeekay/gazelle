@@ -10,7 +10,7 @@ toy_CNN_data
 #####################
 *.swp
 *.pyc
-
+.ipynb_checkpoints
 
 # specific files #
 ##################
