@@ -229,15 +229,15 @@ def cnn_model_fn(features, labels, mode):
     train_op = tf.contrib.layers.optimize_loss(
         loss=loss,
         global_step=tf.contrib.framework.get_global_step(),
-        learning_rate=0.000001,
+        learning_rate=0.001, # This might need to be smaller
         optimizer="SGD")
         #decay_rate=tf.??? Can try to use tf.train.exponential_decay
 
   # 3. Generate Predictions
   # Remember, |xy_output| returns a [batch_size, 2] Tensor.
-  # What to do here? Unsure, may be wrong. Do we need anything else in the dictionary?
+  # What is supposed to go in here? Unsure, may be wrong. Do we need anything else in the dictionary?
   predictions = {
-      "coordinates": xy_output,
+      "coordinates": tf.Print(xy_output, [xy_output], name="xy_units_output"), # The identity operation through Print
       "squared diff": tf.squared_difference(tf.cast(labels, tf.float32), xy_output,
                                             name="squared_diff_tensor")
   }
@@ -258,16 +258,28 @@ def main(unused_argv):
   eval_data = pickle.load(open(CNN_DATA_ROOT + 'eval_data_tiny.pkl', 'rb'))
   eval_labels = pickle.load(open(CNN_DATA_ROOT + 'eval_labels_tiny.pkl', 'rb'))
 
+  # Debugging: Print out all the data and labels.
+  print (train_labels)
+
   # Create the Estimator
   gazelle_estimator = learn.Estimator(
-      model_fn=cnn_model_fn, model_dir="/tmp/gazelle_convnet_model")
+      model_fn=cnn_model_fn, model_dir="../tmp/gazelle_conv_model")
 
   # Set up logging for when the CNN trains
   # Log the values in the tensor named under predictions "squared_diff_tensor"
   #   with label "coords sq.diff loss"
-  tensors_to_log = {"coords sq.diff loss": "squared_diff_tensor"}
+  tensors_to_log = {"coords": "xy_units_output",
+                    "sq.diff": "squared_diff_tensor"}
   logging_hook = tf.train.LoggingTensorHook(
       tensors=tensors_to_log, every_n_iter=3)
+  """
+    When we were using XPts and YPts:
+    INFO:tensorflow:loss = 63360.7, step = 1
+    INFO:tensorflow:sq.diff coords = [[ 147468.921875     31324.9921875 ]
+     [  23763.97460938     697.4786377 ]
+     [ 151734.234375     25174.85546875]]
+    ERROR:tensorflow:Model diverged with loss = NaN.
+  """
 
   # Train the model
   gazelle_estimator.fit(
