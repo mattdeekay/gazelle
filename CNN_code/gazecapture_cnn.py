@@ -250,19 +250,19 @@ def cnn_model_fn(features, labels, mode):
 
 
 def main(unused_argv):
-  # We are testing the Gazelle CNN on the *tiny* dataset right now:
-  # train_data_tiny, train_labels_tiny, eval_data_tiny, eval_labels_tiny
   # Load training and eval data from GazeCapture dataset
-  train_data = pickle.load(open(CNN_DATA_ROOT + 'train_data_tiny.pkl', 'rb'))
-  train_labels = pickle.load(open(CNN_DATA_ROOT + 'train_labels_tiny.pkl', 'rb'))
-  eval_data = pickle.load(open(CNN_DATA_ROOT + 'eval_data_tiny.pkl', 'rb'))
-  eval_labels = pickle.load(open(CNN_DATA_ROOT + 'eval_labels_tiny.pkl', 'rb'))
+
+  train_data_file = open(CNN_DATA_ROOT + 'train_data_batchA.pkl', 'rb') #batchA: size 364
+  train_labels_file = open(CNN_DATA_ROOT + 'train_labels_batchA.pkl', 'rb')
+  eval_data_file = open(CNN_DATA_ROOT + 'dataset_tiny/train_data_tiny.pkl', 'rb') # Yes i know, using train (size 24) as eval.
+  eval_labels_file = open(CNN_DATA_ROOT + 'dataset_tiny/train_labels_tiny.pkl', 'rb')
+
+  train_data = pickle.load(train_data_file).astype('float32') #numpy arrays
+  train_labels = pickle.load(train_labels_file).astype('float32')
+  eval_data = pickle.load(eval_data_file).astype('float32')
+  eval_labels = pickle.load(eval_labels_file).astype('float32')
   
-  # The data isn't the right type for now. Cast it to float32
-  train_data = train_data.astype('float32')
-  eval_data = eval_data.astype('float32')
-  train_labels = train_labels.astype('float32')
-  eval_labels = eval_labels.astype('float32')
+  # ------------------------------
 
   # Create the Estimator
   gazelle_estimator = learn.Estimator(
