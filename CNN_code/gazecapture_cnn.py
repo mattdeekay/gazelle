@@ -19,6 +19,7 @@ from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_f
 # Specific to Gazelle.
 import pickle
 from gazelle_utils import *
+import time
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -219,7 +220,7 @@ def cnn_model_fn(features, labels, mode):
 
   # 1. Calculate Loss (for both TRAIN and EVAL modes)
   if mode != learn.ModeKeys.INFER:
-    loss = tf.losses.mean_squared_error(labels=labels, predictions=xy_output)
+    loss = tf.sqrt(tf.losses.mean_squared_error(labels=labels, predictions=xy_output))
     
   # 2. Configure the Training Op (for TRAIN mode)
   if mode == learn.ModeKeys.TRAIN:
@@ -227,7 +228,7 @@ def cnn_model_fn(features, labels, mode):
         loss=loss,
         global_step=tf.contrib.framework.get_global_step(),
         # learning_rate=0.001 # This was original, when training against X/YPts it needs to be smaller below
-        learning_rate=0.00000001,
+        learning_rate=0.00001,
         optimizer="SGD")
         #decay_rate=tf.??? Can try to use tf.train.exponential_decay
 
@@ -272,7 +273,8 @@ def main(unused_argv):
                     "difference from actual": "delta_tensor",
                     "sq.diff loss": "squared_diff_tensor"}
   logging_hook = tf.train.LoggingTensorHook(
-      tensors=tensors_to_log, every_n_iter=1)
+      tensors=tensors_to_log,
+      every_n_iter=2)
 
   # Train the model
   gazelle_estimator.fit(
@@ -298,7 +300,8 @@ def main(unused_argv):
   # Very jank way to touch a file, so that if we come back to instance-1 and check the dir,
   #   we can tell the CNN finished.
   f = open("we-are-finished.txt", 'w')
-  f.write("CNN finished")
+  localtime = time.localtime(time.time())
+  f.write(time.asctime(localtime) + '\n')
   f.close()
 
 
