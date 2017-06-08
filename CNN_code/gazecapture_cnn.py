@@ -20,6 +20,7 @@ from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_f
 import pickle
 from gazelle_utils import *
 import time
+import hog_module as hog
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -238,8 +239,8 @@ def cnn_model_fn(features, labels, mode):
   predictions = {
       "loss": tf.Print(loss, [loss], name="loss_tensor"),
       "coords delta": tf.subtract(xy_output, labels, name="delta_tensor"),
-      "squared diff": tf.squared_difference(tf.cast(labels, tf.float32), xy_output,
-                                            name="squared_diff_tensor")
+      "x difference": tf.slice(tf.subtract(xy_output, labels), [0,0], [-1,1], name="xdiff_tensor"),
+      "y difference": tf.slice(tf.subtract(xy_output, labels), [0,1], [-1,1], name="ydiff_tensor")
   }
 
   # Done: Return a ModelFnOps object
@@ -252,9 +253,9 @@ def cnn_model_fn(features, labels, mode):
 def main(unused_argv):
   # Load training and eval data from GazeCapture dataset
 
-  train_data_file = open(CNN_DATA_ROOT + 'train_data_batchA.pkl', 'rb') #batchA: size 364
+  train_data_file = open(CNN_DATA_ROOT + 'train_data_batchA.pkl', 'rb') #batchA size N=364. shape [N, 144,144,3,4]
   train_labels_file = open(CNN_DATA_ROOT + 'train_labels_batchA.pkl', 'rb')
-  eval_data_file = open(CNN_DATA_ROOT + 'dataset_tiny/train_data_tiny.pkl', 'rb') # Yes i know, using train (size 24) as eval.
+  eval_data_file = open(CNN_DATA_ROOT + 'dataset_tiny/train_data_tiny.pkl', 'rb') # WRONG testing data, this is in pixels. Trained on cm.
   eval_labels_file = open(CNN_DATA_ROOT + 'dataset_tiny/train_labels_tiny.pkl', 'rb')
 
   train_data = pickle.load(train_data_file).astype('float32') #numpy arrays
@@ -262,6 +263,12 @@ def main(unused_argv):
   eval_data = pickle.load(eval_data_file).astype('float32')
   eval_labels = pickle.load(eval_labels_file).astype('float32')
   
+  #pic = 6
+  #cib=2
+  #nbins=9
+  # shape [H_blocks, W_blocks, cib * cib * nbins]
+
+  # hog.as_monochrome(image)
   # ------------------------------
 
   # Create the Estimator
@@ -269,9 +276,9 @@ def main(unused_argv):
       model_fn=cnn_model_fn, model_dir="../tmp/gazelle_conv_model")
 
   # Set up logging for when the CNN trains
-  tensors_to_log = {"loss": "loss_tensor",
-                    "difference from actual": "delta_tensor",
-                    "sq.diff loss": "squared_diff_tensor"}
+  tensors_to_log = { "loss": "loss_tensor",
+                     "x diff": "xdiff_tensor",
+                     "y diff": "ydiff_tensor" } # Need to DEBUG: check that x diff and y diff are logging right.
   logging_hook = tf.train.LoggingTensorHook(
       tensors=tensors_to_log,
       every_n_iter=2)
