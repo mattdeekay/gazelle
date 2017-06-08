@@ -20,6 +20,7 @@ from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_f
 import pickle
 from gazelle_utils import *
 import time
+import hog_module as hog
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -252,9 +253,9 @@ def cnn_model_fn(features, labels, mode):
 def main(unused_argv):
   # Load training and eval data from GazeCapture dataset
 
-  train_data_file = open(CNN_DATA_ROOT + 'train_data_batchA.pkl', 'rb') #batchA: size 364
+  train_data_file = open(CNN_DATA_ROOT + 'train_data_batchA.pkl', 'rb') #batchA size N=364. shape [N, 144,144,3,4]
   train_labels_file = open(CNN_DATA_ROOT + 'train_labels_batchA.pkl', 'rb')
-  eval_data_file = open(CNN_DATA_ROOT + 'dataset_tiny/train_data_tiny.pkl', 'rb') # Yes i know, using train (size 24) as eval.
+  eval_data_file = open(CNN_DATA_ROOT + 'dataset_tiny/train_data_tiny.pkl', 'rb') # WRONG testing data, this is in pixels. Trained on cm.
   eval_labels_file = open(CNN_DATA_ROOT + 'dataset_tiny/train_labels_tiny.pkl', 'rb')
 
   train_data = pickle.load(train_data_file).astype('float32') #numpy arrays
@@ -262,6 +263,12 @@ def main(unused_argv):
   eval_data = pickle.load(eval_data_file).astype('float32')
   eval_labels = pickle.load(eval_labels_file).astype('float32')
   
+  pic = 6
+  cib=2
+  nbins=9
+  # shape [H_blocks, W_blocks, cib * cib * nbins]
+
+  # hog.as_monochrome(image)
   # ------------------------------
 
   # Create the Estimator
