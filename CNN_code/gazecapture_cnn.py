@@ -29,8 +29,15 @@ def tfprint(name, tensor):
   print(name)
   a = tf.Print(tensor, [tensor])
   print(a)
-    
+
+
+# The learning rate specified as a parameter when running
+#   gazecapture_cnn.py; this is used in |cnn_model_fn|.
+# Defaults to 0.00001 (10^-5).
+LEARNRATE = 0.00001
+
 def cnn_model_fn(feature_cols, labels, mode):
+  global learnrate
   features = feature_cols['data']
   hog_input = feature_cols['hog']
   # features = Tensor("Print:0", shape=(?, 144, 144, 3, 4), dtype=float32)
@@ -232,7 +239,7 @@ def cnn_model_fn(feature_cols, labels, mode):
         loss=loss,
         global_step=tf.contrib.framework.get_global_step(),
         # learning_rate=0.001 # This was original, when training against X/YPts it needs to be smaller below
-        learning_rate=0.00001,
+        learning_rate=LEARNRATE,
         optimizer="SGD")
         #decay_rate=tf.??? Can try to use tf.train.exponential_decay
 
@@ -259,8 +266,8 @@ function|gazelle_input_fn|:
     scope to run HOG and supply hog features into the cnn_model_fn.
 """
 def gazelle_input_fn(data_name, eval_name):
-    data = np.load(CNN_DATA_ROOT + data_name)[:10,:,:,:,:]
-    labels = np.load(CNN_DATA_ROOT + eval_name)[:10,:]
+    data = np.load(data_name)[:10,:,:,:,:]
+    labels = np.load(eval_name)[:10,:]
     
     mono_face = hog.as_monochrome(data[:,:,:,:,2]) # shape (N, 144,144)
     data_hog = hog.compute_hog_features(mono_face, pic=12, cib=2, nbins=9)
@@ -269,20 +276,26 @@ def gazelle_input_fn(data_name, eval_name):
                     "hog" : tf.convert_to_tensor(data_hog, dtype=tf.float32) }
     return feature_cols, tf.convert_to_tensor(labels, dtype=tf.float32)
 
+
+
 ##############################
 # Helper.
-def npys(string): return string + '.npy'
+def dataw(num): return CNN_DATA_ROOT + "data" + str(num) + '.npy'
+def labelw(num): return CNN_DATA_ROOT + "XYArray" + str(num) + '.npy'
+
+
+##############################
 
 def main(argv):
-  # Parse parameters.
-  #assert len(argv) == 3
-  
-  #learning_rate = float(argv[2]) # Get the learning rate parameter we provide
-  
-  train_data_filename = 'data4.npy'
-  train_labels_filename = 'XYArray4.npy'
-  eval_data_filename = 'data2.npy'
-  eval_labels_filename = 'XYArray2.npy'
+  """ argv = 'gazecapture_cnn.py', [id of train], [id of test/eval], learnrate (optional) """
+  train_id, eval_id = argv[1:3]
+  global LEARNRATE
+
+  train_data_filename = dataw(train_id)
+  train_labels_filename = labelw(train_id)
+  eval_data_filename = dataw(eval_id)
+  eval_labels_filename = labelw(eval_id)
+  if len(argv) > 3: LEARNRATE = float(argv[3])
 
   # Create the Estimator, which encompasses training and evaluation
   gazelle_estimator = learn.Estimator(
@@ -297,6 +310,7 @@ def main(argv):
       every_n_iter=5)
 
   # Train the model.
+  #???? FIGURE OUT HOW STEPS WORKS
   gazelle_estimator.fit(
       input_fn=lambda: gazelle_input_fn(train_data_filename, train_labels_filename),
       steps=1000, # At every step, does it randomly pull out 4 samples from the 364? Can test this tomorrow
