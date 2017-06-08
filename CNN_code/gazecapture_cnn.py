@@ -239,8 +239,8 @@ def cnn_model_fn(features, labels, mode):
   predictions = {
       "loss": tf.Print(loss, [loss], name="loss_tensor"),
       "coords delta": tf.subtract(xy_output, labels, name="delta_tensor"),
-      "squared diff": tf.squared_difference(tf.cast(labels, tf.float32), xy_output,
-                                            name="squared_diff_tensor")
+      "x difference": tf.slice(tf.subtract(xy_output, labels), [0,0], [-1,1], name="xdiff_tensor"),
+      "y difference": tf.slice(tf.subtract(xy_output, labels), [0,1], [-1,1], name="ydiff_tensor")
   }
 
   # Done: Return a ModelFnOps object
@@ -263,9 +263,9 @@ def main(unused_argv):
   eval_data = pickle.load(eval_data_file).astype('float32')
   eval_labels = pickle.load(eval_labels_file).astype('float32')
   
-  pic = 6
-  cib=2
-  nbins=9
+  #pic = 6
+  #cib=2
+  #nbins=9
   # shape [H_blocks, W_blocks, cib * cib * nbins]
 
   # hog.as_monochrome(image)
@@ -276,9 +276,9 @@ def main(unused_argv):
       model_fn=cnn_model_fn, model_dir="../tmp/gazelle_conv_model")
 
   # Set up logging for when the CNN trains
-  tensors_to_log = {"loss": "loss_tensor",
-                    "difference from actual": "delta_tensor",
-                    "sq.diff loss": "squared_diff_tensor"}
+  tensors_to_log = { "loss": "loss_tensor",
+                     "x diff": "xdiff_tensor",
+                     "y diff": "ydiff_tensor" } # Need to DEBUG: check that x diff and y diff are logging right.
   logging_hook = tf.train.LoggingTensorHook(
       tensors=tensors_to_log,
       every_n_iter=2)
