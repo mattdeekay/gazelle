@@ -11,7 +11,7 @@ MNIST-data/
 #####################
 *.swp
 *.pyc
-
+.ipynb_checkpoints
 
 # specific files #
 ##################
