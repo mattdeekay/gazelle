@@ -3,15 +3,17 @@ import numpy as np
 #from plotting import *
 
 def as_monochrome(im):
-    # Input |im| = [H, W, 3].
+    # Input |im| = [..., H, W, 3].
     return im.dot(np.array([0.299, 0.587, 0.114]))
 
 
 """
 genhist works now with [num, H, W]:
-    :return: hist.shape = [nbins, num]
+    :return: hist.shape = [nbins, num_im]
 """
 def genhist(im, nbins):
+    # padding to maintain size
+    im = np.lib.pad(im, ((0,0),(1,1),(1,1)), mode='constant')
     # The compute gradient function
     dy = im[:, :-2, 1:-1] - im[:, 2:, 1:-1]
     dx = im[:, 1:-1, :-2] - im[:, 1:-1, 2:]
@@ -20,7 +22,7 @@ def genhist(im, nbins):
     angles[angles < 0] += 180
 
     # The original generate_histogram
-    num_im = angles.shape[0]
+    num_im = im.shape[0]
     hist = np.zeros((nbins, num_im))
     binterval = float(180/nbins)
     norm_angle = (angles - 10)/binterval
@@ -32,14 +34,16 @@ def genhist(im, nbins):
     bin1 = bin1 % nbins
     bin2 = bin2 % nbins
     for i in xrange(num_im):
-        for m in xrange(angles.shape[0]):
-            for n in xrange(angles.shape[1]):
-                hist[bin1[m,n], i] += bin1_amounts[i,m,n]
-                hist[bin2[m,n], i] += bin2_amounts[i,m,n]
+        for m in xrange(angles.shape[1]):
+            for n in xrange(angles.shape[2]):
+                a = bin1_amounts[i,m,n]
+                hist[bin1[i,m,n], i] += a
+                hist[bin2[i,m,n], i] += bin2_amounts[i,m,n]
     # hist.shape: [nbins, num_im]
     return hist
 
 def compute_hog_features(im, pic, cib, nbins):
+    print "hog_module: starting to compute hog."
     """
     |im| is now [num, H, W].
     Returns ndarray of shape [H_blocks, W_blocks, cib * cib * nbins].
@@ -69,6 +73,7 @@ def compute_hog_features(im, pic, cib, nbins):
     hog_array = np.array(hog_feature)
     hog_array = np.rollaxis(hog_array, 3) # hog_array.shape = [num_im, H_blocks, W_blocks, cib*cib*nbins]
     return hog_array
+
 """
 if __name__ == '__main__':
     images = ['face1_macron.jpg', 'car.jpg', '240.jpg']
@@ -79,9 +84,10 @@ if __name__ == '__main__':
     im = np.array(imarray)
     print "starting im", im.shape
 
-    pic = 8
+    pic = 6
     cib=2
     nbins=9
+    # This gives 23 x 23 x 36
 
     poop = compute_hog_features(im, pic, cib, nbins)
     show_hog(im[0], poop[0], figsize = (18,6))

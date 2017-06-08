@@ -20,4 +20,5 @@ OUT_IMG_DIR = G_ARCHIVE + "out_faces/"
 TOYFRAMES_DIR = G_ROOT + "toy_dataset/01001/frames/"
 OUT_TOYFRAMES_DIR = OUT_DATA_DIR + "toy_frames_01001/"
 
-CNN_DATA_ROOT = G_ROOT + "toy_CNN_data/"
+CNN_TOY_DATA_ROOT = G_ROOT + "toy_CNN_data/"
+CNN_DATA_ROOT = G_ROOT + "data_CNN/clean/"
