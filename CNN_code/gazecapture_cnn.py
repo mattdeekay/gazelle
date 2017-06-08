@@ -19,6 +19,8 @@ from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_f
 # Specific to Gazelle.
 import pickle
 from gazelle_utils import *
+import time
+import hog_module as hog
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -219,7 +221,7 @@ def cnn_model_fn(features, labels, mode):
 
   # 1. Calculate Loss (for both TRAIN and EVAL modes)
   if mode != learn.ModeKeys.INFER:
-    loss = tf.losses.mean_squared_error(labels=labels, predictions=xy_output)
+    loss = tf.sqrt(tf.losses.mean_squared_error(labels=labels, predictions=xy_output))
     
   # 2. Configure the Training Op (for TRAIN mode)
   if mode == learn.ModeKeys.TRAIN:
@@ -227,7 +229,7 @@ def cnn_model_fn(features, labels, mode):
         loss=loss,
         global_step=tf.contrib.framework.get_global_step(),
         # learning_rate=0.001 # This was original, when training against X/YPts it needs to be smaller below
-        learning_rate=0.00000001,
+        learning_rate=0.00001,
         optimizer="SGD")
         #decay_rate=tf.??? Can try to use tf.train.exponential_decay
 
@@ -237,8 +239,8 @@ def cnn_model_fn(features, labels, mode):
   predictions = {
       "loss": tf.Print(loss, [loss], name="loss_tensor"),
       "coords delta": tf.subtract(xy_output, labels, name="delta_tensor"),
-      "squared diff": tf.squared_difference(tf.cast(labels, tf.float32), xy_output,
-                                            name="squared_diff_tensor")
+      "x difference": tf.slice(tf.subtract(xy_output, labels), [0,0], [-1,1], name="xdiff_tensor"),
+      "y difference": tf.slice(tf.subtract(xy_output, labels), [0,1], [-1,1], name="ydiff_tensor")
   }
 
   # Done: Return a ModelFnOps object
@@ -249,37 +251,44 @@ def cnn_model_fn(features, labels, mode):
 
 
 def main(unused_argv):
-  # We are testing the Gazelle CNN on the *tiny* dataset right now:
-  # train_data_tiny, train_labels_tiny, eval_data_tiny, eval_labels_tiny
   # Load training and eval data from GazeCapture dataset
-  train_data = pickle.load(open(CNN_DATA_ROOT + 'train_data_tiny.pkl', 'rb'))
-  train_labels = pickle.load(open(CNN_DATA_ROOT + 'train_labels_tiny.pkl', 'rb'))
-  eval_data = pickle.load(open(CNN_DATA_ROOT + 'eval_data_tiny.pkl', 'rb'))
-  eval_labels = pickle.load(open(CNN_DATA_ROOT + 'eval_labels_tiny.pkl', 'rb'))
+
+  train_data_file = open(CNN_DATA_ROOT + 'train_data_batchA.pkl', 'rb') #batchA size N=364. shape [N, 144,144,3,4]
+  train_labels_file = open(CNN_DATA_ROOT + 'train_labels_batchA.pkl', 'rb')
+  eval_data_file = open(CNN_DATA_ROOT + 'dataset_tiny/train_data_tiny.pkl', 'rb') # WRONG testing data, this is in pixels. Trained on cm.
+  eval_labels_file = open(CNN_DATA_ROOT + 'dataset_tiny/train_labels_tiny.pkl', 'rb')
+
+  train_data = pickle.load(train_data_file).astype('float32') #numpy arrays
+  train_labels = pickle.load(train_labels_file).astype('float32')
+  eval_data = pickle.load(eval_data_file).astype('float32')
+  eval_labels = pickle.load(eval_labels_file).astype('float32')
   
-  # The data isn't the right type for now. Cast it to float32
-  train_data = train_data.astype('float32')
-  eval_data = eval_data.astype('float32')
-  train_labels = train_labels.astype('float32')
-  eval_labels = eval_labels.astype('float32')
+  #pic = 6
+  #cib=2
+  #nbins=9
+  # shape [H_blocks, W_blocks, cib * cib * nbins]
+
+  # hog.as_monochrome(image)
+  # ------------------------------
 
   # Create the Estimator
   gazelle_estimator = learn.Estimator(
       model_fn=cnn_model_fn, model_dir="../tmp/gazelle_conv_model")
 
   # Set up logging for when the CNN trains
-  tensors_to_log = {"loss": "loss_tensor",
-                    "difference from actual": "delta_tensor",
-                    "sq.diff loss": "squared_diff_tensor"}
+  tensors_to_log = { "loss": "loss_tensor",
+                     "x diff": "xdiff_tensor",
+                     "y diff": "ydiff_tensor" } # Need to DEBUG: check that x diff and y diff are logging right.
   logging_hook = tf.train.LoggingTensorHook(
-      tensors=tensors_to_log, every_n_iter=1)
+      tensors=tensors_to_log,
+      every_n_iter=2)
 
   # Train the model
   gazelle_estimator.fit(
       x=train_data,
       y=train_labels,
-      batch_size=3,
-      steps=8,
+      batch_size=4,
+      steps=100, # At every step, does it randomly pull out 4 samples from the 364? Can test this tomorrow
       monitors=[logging_hook])
 
   # Make our own GC accuracy metric
@@ -298,7 +307,8 @@ def main(unused_argv):
   # Very jank way to touch a file, so that if we come back to instance-1 and check the dir,
   #   we can tell the CNN finished.
   f = open("we-are-finished.txt", 'w')
-  f.write("CNN finished")
+  localtime = time.localtime(time.time())
+  f.write(time.asctime(localtime) + '\n')
   f.close()
 
 

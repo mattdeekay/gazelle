@@ -3,13 +3,9 @@
 
 tensorflow_venv/
 toy_dataset/
-toy_CNN_data/*
 toy_CNN_data/
-toy_CNN_data
-
-tmp/*
 tmp/
-tmp
+data_CNN/
 # file types ignore #
 #####################
 *.swp
@@ -20,3 +16,4 @@ tmp
 ##################
 sftp-config.json
 MNIST-data
+CNN_code/we-are-finished.txt
