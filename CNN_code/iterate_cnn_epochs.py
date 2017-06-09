@@ -15,91 +15,106 @@ n_epochs = 10
 def verify(filename):
     pass # Put your function here
 
-
-""" Take in one set of input, hog, labels (e.g. data222.npy, hog222.npy, XYArray222.npy)
-    and run the CNN on it. """
-
-def run_one_batch(mode, batch_num_train, batch_num_eval, ep):
+    
+    
+    
+    
+""" Run one job (row). Can be training, validation, or testing. """
+def execute_one_row(mode, batch_num_train, batch_num_eval, ep):
+    print "  ", mode, ": epoch", ep, "running fileno ", batch_num_train, "."
+    
     bnt = str(batch_num_train)
     bne = str(batch_num_eval)
     
     print ("Calling the gazecapture_cnn.py command...")
     call("python gazecapture_cnn.py " + mode + ' ' + bnt + ' ' + bne + ' '+ str(LEARNRATE*(0.9**ep))[:10], shell=True)  #[:10] implemented for string format
-    
-    # We have to figure out some way to log the losses during training, so we can plot it for our report
-    
-    
-    
-""" Run one epoch of training (i.e. go through all the training data). """
-def run_one_epoch(mode, fileNums, batch_num_eval, ep):
-    for f in fileNums:
-        print "  ", mode, ": running fileno ", f, "."
-        run_one_batch(mode, f, batch_num_eval, ep)
+
 
 def start_training(instance):
-    from os import listdir
-    from os.path import isfile, join
+    """
+    Either create the .npy configuration, or read it in.
+    """
+    global n_epochs
+    global restarting
     
     # The folder of data is in Owen's instance
     if (instance == 'o'):
         datapath = "../data_CNN/clean"
     elif (instance == 'm'):
         datapath = "../../../Owen/gazelle-github-Owen/data_CNN/clean"
-    onlyfiles = [f for f in listdir(datapath) if isfile(join(datapath, f))]
+    onlyfiles = [f for f in os.listdir(datapath) if isfile(join(datapath, f))]
     onlyfiles.sort()
     print "There are ", len(onlyfiles), " files: ", onlyfiles
     
-    # Grab all the numbers
+    
+    ###############################
+    # Grab all the numbers.
     import re
     fileNums = []
     for f in onlyfiles:
         fileNums.append(int(re.sub("[^0-9]", "", f)))
     fileNums = list(set(fileNums))
-    valNum = fileNums[-2]
-    testNum = fileNums[-1]
+    print fileNums
+    
+    valNum = fileNums[-2] # arbitrary 2nd to last batch id
+    print "valNum set aside:", valNum
+    testNum = fileNums[-1] # arbitrary (1st to) last batch id
+    print "testNum set aside:", testNum
     fileNums = fileNums[:-2]
+    print "file numbers, two set aside:", fileNums
     # We train fileNum * epochs (train), 1 * epochs (val), 1 (test)
-    payload = np.zeros((epochs*(len(fileNums)+1)+1, 3))
-    mod = len(fileNums)+1
+    
+    epoch_size = len(fileNums)+1
+    print "epoch_size", epoch_size
+    all_with_test = n_epochs*(epoch_size)+1 # testing job += 1
+    payload = np.zeros((all_with_test, 4)).astype(int)
+
     for i in xrange(payload.shape[0]):
-        ep = int(i/len(fileNums+1))
-        if (i % mod) + 1 == mod:
-            payload[i] = [232, 0, valNum, ep]
-        if i == payload.shape[0] - 1:
-            payload[i] = [233, 0, testNum, ep]
+        ep = int(i/epoch_size)
+        if (i % epoch_size) + 1 == epoch_size:
+            payload[i] = np.array([232, 0, valNum, ep]) # validation
+        # The last "job"
+        elif i == payload.shape[0] - 1:
+            payload[i] = np.array([233, 0, testNum, ep]) # test
         else:
-            payload[i] = [231, (i % mod) + 1, 0, ep]
-    np.save("recovering.npy", payload)
+            payload[i] = np.array([231, fileNums[i % epoch_size], 0, ep]) # train
+            
+    np.save("restarting_iter.npy", payload)
     restarting = True
-    recover_training("recovering.npy")
+    recover_training("restarting_iter.npy")
 
 def numToMode (num):
-    if num is 231:
+    if num == 231:
         return 'train'
-    if num is 232:
-        return 'val'
-    if num is 233:
+    elif num == 232:
+        return 'validation'
+    elif num == 233:
         return 'test'
+    # return None
     
     
 def recover_training(log_file):
     payload = np.load(log_file)
     while (payload.shape[0] > 0):
-        args = payload[0,:]
-        run_one_epoch(numToMode(args[0]), args[1], args[2], args[3])
-        payload = payload[1:,:]
+        args = payload[0,:] # first row
+        print "args", args
+        execute_one_row(numToMode(args[0]), args[1], args[2], args[3])
+
+        payload = payload[1:,:] # remove first row
         np.save(log_file, payload)
     print "\n\n    TRAINING HAS FINISHED    \n\n"
     
         
 def main(argv):
-    if (os.path.isfile("restarting.npy"):
+    global restarting
+    
+    if (os.path.isfile("restarting_iter.npy")):
         restarting = True
     
-    if restarting is False:
+    if not restarting:
         start_training(argv[1])
     else:
-        recover_training("restarting.npy")
+        recover_training("restarting_iter.npy")
 
 if __name__ == "__main__":
     tf.app.run()
