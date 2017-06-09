@@ -337,13 +337,13 @@ def main(argv):
   global TRAIN_HOG
   global TRAIN_LABEL
   
-
-  train_id, eval_id = argv[1:3]
-  if len(argv) > 3: LEARNRATE = float(argv[3])
+  mode = argv[1]
+  train_id, eval_id = argv[2:4]
+  if len(argv) > 3: LEARNRATE = float(argv[4])
 
   # Load all the inputs for a given batch into global variables.
   train_num = load_training_batch_data_globally(train_id)
-  print ("Detected training batch %s size %s" % (train_id), train_num)
+  print ("Detected training batch %s w.size %s" % (train_id, train_num))
 
   eval_data  = np.load(eval_data_filename)
   eval_hog   = np.load(eval_hog_filename)
