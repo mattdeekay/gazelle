@@ -23,8 +23,7 @@ from gazelle_utils import *
 tf.logging.set_verbosity(tf.logging.INFO)
 
 # For debugging
-def tfprint(name, tensor):
-  print(name)
+def tfprint(tensor):
   with tf.Session() as sess:
       #a = tf.Print(tensor, [tensor])
       a = sess.run(tensor)
@@ -35,7 +34,7 @@ def tfprint(name, tensor):
 #   gazecapture_cnn.py; this is used in |cnn_model_fn|.
 
 LEARNRATE = 0.00001  # Defaults to 0.00001 (10^-5).
-MINIBATCH_SIZE = 20.0
+MINIBATCH_SIZE = 20
 NUM_SAMPLES = None
 BATCH_GSTEP = 0
 
@@ -50,8 +49,8 @@ def cnn_model_fn(feature_cols, labels, mode):
   features = feature_cols['data']
   hog_input = feature_cols['hog']
   # features = Tensor("Print:0", shape=(?, 144, 144, 3, 4), dtype=float32)
-  print ("cnn_model_fn was called! feature size:")
-  tfprint("features", tf.shape(features))
+  print ("cnn_model_fn was called, feature size:")
+  tfprint(tf.shape(features))
 
   # Input Layer
   # we have 4 inputs in the order: right eye, left eye, face, face grid (bound by dim #4 of value 4)
@@ -67,30 +66,30 @@ def cnn_model_fn(feature_cols, labels, mode):
   # ============================
   # Convolutional Layer #1
   # Input Tensor Shape: [batch_size, 144, 144, 3]
-  # Output Tensor Shape: [batch_size, 144, 144, 96]
+  # Output Tensor Shape: [batch_size, 144, 144, 48]
   conv_ER1 = tf.layers.conv2d(
       inputs=R_eye,
-      filters=96,
+      filters=48,
       kernel_size=[11,11],
       padding="same",
       activation=tf.nn.relu)
   conv_EL1 = tf.layers.conv2d(
       inputs=L_eye,
-      filters=96,
+      filters=48,
       kernel_size=[11,11],
       padding="same",
       activation=tf.nn.relu)
   conv_F1  = tf.layers.conv2d(
       inputs=face,
-      filters=96,
+      filters=48,
       kernel_size=[11,11],
       padding="same",
       activation=tf.nn.relu)
-  # Tensor("Print:0", shape=(?, 144, 144, 96), dtype=float32)
+  # Tensor("Print:0", shape=(?, 144, 144, 48), dtype=float32)
 
   # Pooling Layer 1
-  # Input Tensor Shape: [batch_size, 144, 144, 96]
-  # Output Tensor Shape: [batch_size, 72, 72, 96]
+  # Input Tensor Shape: [batch_size, 144, 144, 48]
+  # Output Tensor Shape: [batch_size, 72, 72, 48]
   conv_ER1_pooled = tf.layers.max_pooling2d(
       inputs=conv_ER1,
       pool_size=[2,2],
@@ -105,52 +104,52 @@ def cnn_model_fn(feature_cols, labels, mode):
       strides=2)
 
   # Convolutional Layer #2
-  # Input Tensor Shape: [batch_size, 72, 72, 96]
-  # Output Tensor Shape: [batch_size, 72, 72, 256]
+  # Input Tensor Shape: [batch_size, 72, 72, 48]
+  # Output Tensor Shape: [batch_size, 72, 72, 128]
   conv_ER2 = tf.layers.conv2d(
       inputs=conv_ER1_pooled,
-      filters=256,
+      filters=128,
       kernel_size=[5,5],
       padding="same",
       activation=tf.nn.relu)
   conv_EL2 = tf.layers.conv2d(
       inputs=conv_EL1_pooled,
-      filters=256,
+      filters=128,
       kernel_size=[5,5],
       padding="same",
       activation=tf.nn.relu)
   conv_F2  = tf.layers.conv2d(
       inputs=conv_F1_pooled,
-      filters=256,
+      filters=128,
       kernel_size=[5,5],
       padding="same",
       activation=tf.nn.relu)
 
   # Convolutional Layer #3
-  # Input Tensor Shape: [batch_size, 72, 72, 256]
-  # Output Tensor Shape: [batch_size, 72, 72, 384]
+  # Input Tensor Shape: [batch_size, 72, 72, 128]
+  # Output Tensor Shape: [batch_size, 72, 72, 192]
   conv_ER3 = tf.layers.conv2d(
       inputs=conv_ER2,
-      filters=384,
+      filters=192,
       kernel_size=[3,3],
       padding="same",
       activation=tf.nn.relu)
   conv_EL3 = tf.layers.conv2d(
       inputs=conv_EL2,
-      filters=384,
+      filters=192,
       kernel_size=[3,3],
       padding="same",
       activation=tf.nn.relu)
   conv_F3  = tf.layers.conv2d(
       inputs=conv_F2,
-      filters=384,
+      filters=192,
       kernel_size=[3,3],
       padding="same",
       activation=tf.nn.relu)
 
   # Pooling Layer 2
-  # Input Tensor Shape: [batch_size, 72, 72, 384]
-  # Output Tensor Shape: [batch_size, 36, 36, 384]
+  # Input Tensor Shape: [batch_size, 72, 72, 192]
+  # Output Tensor Shape: [batch_size, 36, 36, 192]
   conv_ER3_pooled = tf.layers.max_pooling2d(
       inputs=conv_ER3,
       pool_size=[2,2],
@@ -165,7 +164,7 @@ def cnn_model_fn(feature_cols, labels, mode):
       strides=2)
 
   # Convolutional Layer #4
-  # Input Tensor Shape: [batch_size, 36, 36, 384]
+  # Input Tensor Shape: [batch_size, 36, 36, 192]
   # Output Tensor Shape: [batch_size, 36, 36, 64]
   conv_ER4 = tf.layers.conv2d(
       inputs=conv_ER3_pooled,
@@ -396,4 +395,6 @@ def main(argv):
 
 
 if __name__ == "__main__":
-  tf.app.run()
+  with tf.Session() as sess:
+    with tf.device("/gpu:0"):
+      tf.app.run()
