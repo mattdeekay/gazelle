@@ -16,20 +16,21 @@ def verify(filename):
 """ Take in one set of input, hog, labels (e.g. data222.npy, hog222.npy, XYArray222.npy)
     and run the CNN on it. """
 
-def run_one_batch(batch_num_train, mode):
+def run_one_batch(mode, batch_num_train, batch_num_eval):
     bnt = str(batch_num_train)
-    #bne = str(batch_num_eval)
+    bne = str(batch_num_eval)
     
-    call("python gazecapture_cnn.py " + bnt + ' ' + mode + ' '+ str(LEARNRATE), shell=True)
+    call("python gazecapture_cnn.py " + mode + ' ' + bnt + ' ' + bne + ' '+ str(LEARNRATE), shell=True)
     
     # We have to figure out some way to log the losses during training, so we can plot it for our report
     
     
     
 """ Run one epoch of training (i.e. go through all the training data). """
-def run_one_epoch(fileNums, mode):
+def run_one_epoch(mode, fileNums, batch_num_eval):
     for f in fileNums:
-        run_one_batch(f, mode)
+        print "  Running fileno ", f, "."
+        run_one_batch(mode, f, batch_num_eval)
 
 def main(argv):
     instance = argv[1]
@@ -55,7 +56,8 @@ def main(argv):
     
     n_epochs = 10
     for i in xrange(n_epochs):
-        run_one_epoch(fileNums, 'train')
+        print "Running epoch ", i, "."
+        run_one_epoch('train', fileNums, 0)
 
 if __name__ == "__main__":
     tf.app.run()
