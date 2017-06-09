@@ -17,7 +17,7 @@ from tensorflow.contrib import learn
 from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_fn_lib
 
 # Specific to Gazelle.
-import pickle
+import pickle # may be deprecated soon
 from gazelle_utils import *
 import time
 import hog_module as hog
@@ -29,11 +29,21 @@ def tfprint(name, tensor):
   print(name)
   a = tf.Print(tensor, [tensor])
   print(a)
-    
-def cnn_model_fn(features, labels, mode):
-  # features = Tensor("Print:0", shape=(?, 144, 144, 3, 4), dtype=float32)
 
-  # GC Input Layer
+
+# The learning rate specified as a parameter when running
+#   gazecapture_cnn.py; this is used in |cnn_model_fn|.
+# Defaults to 0.00001 (10^-5).
+LEARNRATE = 0.00001
+
+def cnn_model_fn(feature_cols, labels, mode):
+  global learnrate
+  features = feature_cols['data']
+  hog_input = feature_cols['hog']
+  # features = Tensor("Print:0", shape=(?, 144, 144, 3, 4), dtype=float32)
+  print "cnn_model_fn was called! size", tf.shape(features)
+
+  # Input Layer
   # we have 4 inputs in the order: right eye, left eye, face, face grid (bound by dim #4 of value 4)
   #   Each one is [batch_size, width, height, channels] = num_batches x 144 x 144 x 3.
 
@@ -43,7 +53,8 @@ def cnn_model_fn(features, labels, mode):
   fgrid = tf.squeeze(tf.slice(features, [0,0,0,0,3], [-1, 144, 144, 3, 1]), axis=4)
   # Tensor("Print_1:0", shape=(?, 1, 144, 144, 3), dtype=float32)
 
-
+  # Convolving the Eyes and Face
+  # ============================
   # Convolutional Layer #1
   # Input Tensor Shape: [batch_size, 144, 144, 3]
   # Output Tensor Shape: [batch_size, 144, 144, 96]
@@ -67,7 +78,6 @@ def cnn_model_fn(features, labels, mode):
       activation=tf.nn.relu)
   # Tensor("Print:0", shape=(?, 144, 144, 96), dtype=float32)
 
-
   # Pooling Layer 1
   # Input Tensor Shape: [batch_size, 144, 144, 96]
   # Output Tensor Shape: [batch_size, 72, 72, 96]
@@ -83,7 +93,6 @@ def cnn_model_fn(features, labels, mode):
       inputs=conv_F1,
       pool_size=[2,2],
       strides=2)
-    
 
   # Convolutional Layer #2
   # Input Tensor Shape: [batch_size, 72, 72, 96]
@@ -144,7 +153,6 @@ def cnn_model_fn(features, labels, mode):
       inputs=conv_F3,
       pool_size=[2,2],
       strides=2)
-    
 
   # Convolutional Layer #4
   # Input Tensor Shape: [batch_size, 36, 36, 384]
@@ -168,47 +176,50 @@ def cnn_model_fn(features, labels, mode):
       padding="same",
       activation=tf.nn.relu)
 
+  # Convolving the HOG of the Face
+  # ==============================
+  # input: [batch_size, 11, 11, 36]
+  # output: [batch_size, 11, 11, 64]
+  conv_HOG = tf.layers.conv2d(
+      inputs=hog_input,
+      filters=64,
+      kernel_size=[3,3],
+      padding="same",
+      activation=tf.nn.relu)
 
   # ----------------------------------
+  
 
-  # Dense Layers: Eyes
-  # Flatten tensors into a batch of vectors, then feed to dense layer
-  # For each (of the 2 eyes):
-  #   Input Tensor Shape (flatten): [batch_size, 36, 36, 64]
-  #   Output Tensor Shape (flatten): [batch_size, 36 * 36 * 64]
-  # Concatenate:
-  #   Final Output Tensor Shape: [batch_size, 36 * 36 * 64 * 2]
-
-  # Dense Layer Eyes: 128 units
+  # Dense Layer Eyes (together): 128 units
   ER_flat = tf.reshape(conv_ER4, [-1, 36 * 36 * 64])
   EL_flat = tf.reshape(conv_EL4, [-1, 36 * 36 * 64])
   eye_flat = tf.concat([ER_flat, EL_flat], axis=1)
   dense_eyes = tf.layers.dense(inputs=eye_flat, units=128, activation=tf.nn.relu)
 
-  # Dense Layers: Face. 128, 64
+  # Face dense layer 1: 128 units, dense layer 2: 64 units
   F_flat = tf.reshape(conv_F4, [-1, 36 * 36 * 64])
-  # Dense Layer Face 1: 128 units
   dense_face1 = tf.layers.dense(inputs=F_flat, units=128, activation=tf.nn.relu)
-  # Dense Layer Face 2: 64 units
   dense_face2 = tf.layers.dense(inputs=dense_face1, units=64, activation=tf.nn.relu)
 
-  # Dense Layers: Face Grid boolean mask
-  #   Post-pooling Tensor SHape: [batch_size, 72, 72]
+  # Face-grid dense layer 1: 256 units, dense layer 2: 128 units
   fgrid_mask = tf.slice(fgrid, [0,0,0,0], [-1, 144, 144, 1])
   fgrid_pooled = tf.layers.max_pooling2d(
       inputs=fgrid_mask,
       pool_size=[2,2],
       strides=2)
   fgrid_flat = tf.reshape(fgrid_pooled, [-1, 72 * 72])
-  # Dense Layer Face-grid 1: 256 units
   dense_fgrid1 = tf.layers.dense(inputs=fgrid_flat, units=128, activation=tf.nn.relu)
-  # Dense Layer Face-grid 1: 128 units
   dense_fgrid2 = tf.layers.dense(inputs=dense_fgrid1, units=64, activation=tf.nn.relu)
 
-
+  # HOG dense layer 1: 256 units, layer 2: 64 units
+  hog_flat = tf.reshape(conv_HOG, [-1, 11 * 11 * 64])
+  dense_hog1 = tf.layers.dense(inputs=hog_flat, units=256, activation=tf.nn.relu)
+  dense_hog2 = tf.layers.dense(inputs=dense_hog1, units=64, activation=tf.nn.relu)
+    
   # Final Dense Layers
-  #   concatenate tensors: eyes, face, face-grid.
-  combined_flat = tf.concat([dense_eyes, dense_face2, dense_fgrid2], axis=1) # shape [batch_size, 128 + 64 + 64]
+  #combined_flat = tf.concat([dense_eyes, dense_face2, dense_fgrid2, dense_hog2], axis=1)
+  combined_flat = tf.concat([dense_eyes, dense_face2, dense_fgrid2], axis=1)
+  # combined_flat shape: [batch_size, 128 + 64 + 64 + 64]
   dense_final = tf.layers.dense(inputs=combined_flat, units=128, activation=tf.nn.relu)
   xy_output = tf.layers.dense(inputs=dense_final, units=2)
   # Tensor("Print:0", shape=(?, 2), dtype=float32)
@@ -229,7 +240,7 @@ def cnn_model_fn(features, labels, mode):
         loss=loss,
         global_step=tf.contrib.framework.get_global_step(),
         # learning_rate=0.001 # This was original, when training against X/YPts it needs to be smaller below
-        learning_rate=0.00001,
+        learning_rate=LEARNRATE,
         optimizer="SGD")
         #decay_rate=tf.??? Can try to use tf.train.exponential_decay
 
@@ -249,46 +260,65 @@ def cnn_model_fn(features, labels, mode):
 
 ###############################
 
+"""
+function|gazelle_input_fn|:
+    Supplies our x, y.
+    This allows for SKCompat compatibility, and also gives us a
+    scope to run HOG and supply hog features into the cnn_model_fn.
+"""
+def gazelle_input_fn(data_name, hog_name, eval_name):
+    print ("input_fn was called! this loads everything")
+    data = np.load(data_name)
+    data_hog = np.load(hog_name)
+    labels = np.load(eval_name)
+    
+    #mono_face = hog.as_monochrome(data[:,:,:,:,2]) # shape (N, 144,144)
+    #data_hog = hog.compute_hog_features(mono_face, pic=12, cib=2, nbins=9)
 
-def main(unused_argv):
-  # Load training and eval data from GazeCapture dataset
+    feature_cols = {"data": tf.convert_to_tensor(data, dtype=tf.float32),
+                    "hog" : tf.convert_to_tensor(data_hog, dtype=tf.float32) }
+    return feature_cols, tf.convert_to_tensor(labels, dtype=tf.float32)
 
-  train_data_file = open(CNN_DATA_ROOT + 'train_data_batchA.pkl', 'rb') #batchA size N=364. shape [N, 144,144,3,4]
-  train_labels_file = open(CNN_DATA_ROOT + 'train_labels_batchA.pkl', 'rb')
-  eval_data_file = open(CNN_DATA_ROOT + 'dataset_tiny/train_data_tiny.pkl', 'rb') # WRONG testing data, this is in pixels. Trained on cm.
-  eval_labels_file = open(CNN_DATA_ROOT + 'dataset_tiny/train_labels_tiny.pkl', 'rb')
 
-  train_data = pickle.load(train_data_file).astype('float32') #numpy arrays
-  train_labels = pickle.load(train_labels_file).astype('float32')
-  eval_data = pickle.load(eval_data_file).astype('float32')
-  eval_labels = pickle.load(eval_labels_file).astype('float32')
-  
-  #pic = 6
-  #cib=2
-  #nbins=9
-  # shape [H_blocks, W_blocks, cib * cib * nbins]
 
-  # hog.as_monochrome(image)
-  # ------------------------------
+##############################
+# Helper.
+def dataw(num): return CNN_DATA_ROOT + "data" + str(num) + '.npy'
+def labelw(num): return CNN_DATA_ROOT + "XYArray" + str(num) + '.npy'
+def hogw(num): return CNN_DATA_ROOT + "hog" + str(num) + '.npy'
 
-  # Create the Estimator
+
+##############################
+
+def main(argv):
+  """ argv = 'gazecapture_cnn.py', [id of train], [id of test/eval], learnrate (optional) """
+  train_id, eval_id = argv[1:3]
+  global LEARNRATE
+
+  train_data_filename = dataw(train_id)
+  train_hog_filename = hogw(train_id)
+  train_labels_filename = labelw(train_id)
+  eval_data_filename = dataw(eval_id)
+  eval_hog_filename = hogw(eval_id)
+  eval_labels_filename = labelw(eval_id)
+  if len(argv) > 3: LEARNRATE = float(argv[3])
+
+  # Create the Estimator, which encompasses training and evaluation
   gazelle_estimator = learn.Estimator(
       model_fn=cnn_model_fn, model_dir="../tmp/gazelle_conv_model")
 
   # Set up logging for when the CNN trains
   tensors_to_log = { "loss": "loss_tensor",
                      "x diff": "xdiff_tensor",
-                     "y diff": "ydiff_tensor" } # Need to DEBUG: check that x diff and y diff are logging right.
+                     "y diff": "ydiff_tensor" }
   logging_hook = tf.train.LoggingTensorHook(
       tensors=tensors_to_log,
-      every_n_iter=2)
+      every_n_iter=5)
 
-  # Train the model
+  # Train the model.
   gazelle_estimator.fit(
-      x=train_data,
-      y=train_labels,
-      batch_size=100,
-      steps=100, # At every step, does it randomly pull out 4 samples from the 364? Can test this tomorrow
+      input_fn=lambda: gazelle_input_fn(train_data_filename, train_hog_filename, train_labels_filename),
+      steps=3, # At every step, does it randomly pull out 4 samples from the 364? Can test this tomorrow
       monitors=[logging_hook])
 
   # Make our own GC accuracy metric
@@ -301,15 +331,9 @@ def main(unused_argv):
 
   # Evaluate the model and print results
   eval_results = gazelle_estimator.evaluate(
-      x=eval_data, y=eval_labels, metrics=metrics)
+      input_fn=lambda: gazelle_input_fn(eval_data_filename, eval_hog_filename, eval_labels_filename),
+      metrics=metrics)
   print(eval_results)
-
-  # Very jank way to touch a file, so that if we come back to instance-1 and check the dir,
-  #   we can tell the CNN finished.
-  f = open("we-are-finished.txt", 'w')
-  localtime = time.localtime(time.time())
-  f.write(time.asctime(localtime) + '\n')
-  f.close()
 
 
 if __name__ == "__main__":
