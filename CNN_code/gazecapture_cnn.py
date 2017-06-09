@@ -294,6 +294,8 @@ def load_training_batch_data_globally(train_id):
     # return the number of images in the training batch
     global NUM_SAMPLES
     NUM_SAMPLES = int(TRAIN_DATA.shape[0])
+    print ("Loaded batch assoc. with number %s." % train_id)
+    print ("Detected %s samples in batch %s." % (NUM_SAMPLES, train_id))
     return NUM_SAMPLES
 
 
@@ -320,8 +322,7 @@ def gazelle_input_fn(data, hog, label, mode):
       label = label[chopstart:chopend, :]
 
       print ("input_fn called, returned data segment [%s, %s)" % (chopstart, chopend))
-    else:
-      print ("input_fn called, returned all data" % (chopstart, chopend))
+
     
     feature_cols = {"data": tf.convert_to_tensor(data, dtype=tf.float32),
                     "hog" : tf.convert_to_tensor(hog, dtype=tf.float32) }
@@ -341,8 +342,13 @@ def main(argv):
   global TRAIN_LABEL
   
   mode = argv[1] # this parameter is 'train', 'validation' or 'test'
+  assert mode == 'test' or mode == 'train' or mode == 'validation'
+  print ("Mode has been detected as '%s'" % mode)
+
   train_id, eval_id = argv[2:4]
-  if len(argv) > 4: LEARNRATE = float(argv[4])
+  if len(argv) > 4:
+        LEARNRATE = float(argv[4])
+        print ("Learn rate has been set to", LEARNRATE)
 
   # Load all the inputs for a given batch into global variables.
   train_num = load_training_batch_data_globally(train_id)
@@ -373,7 +379,7 @@ def main(argv):
   # Train the model.
   if mode == 'train':
     gazelle_estimator.fit(
-        input_fn=lambda: gazelle_input_fn(TRAIN_DATA, TRAIN_HOG, TRAIN_LABEL, mode='train'),
+        input_fn=lambda: gazelle_input_fn(TRAIN_DATA, TRAIN_HOG, TRAIN_LABEL, mode=mode),
         steps=num_steps,
         monitors=[logging_hook])
   else: # 'validation' or 'test'
@@ -384,7 +390,7 @@ def main(argv):
       }
       # Evaluate the model and print results
       eval_results = gazelle_estimator.evaluate(
-          input_fn=lambda: gazelle_input_fn(eval_data, eval_hog, eval_label, mode='eval'),
+          input_fn=lambda: gazelle_input_fn(eval_data, eval_hog, eval_label, mode=mode),
           metrics=metrics)
       print(eval_results)
 
