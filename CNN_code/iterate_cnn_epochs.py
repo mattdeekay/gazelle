@@ -54,7 +54,7 @@ def start_training(instance):
     for f in onlyfiles:
         fileNums.append(int(re.sub("[^0-9]", "", f)))
     fileNums = list(set(fileNums))
-    print fileNums
+    print (fileNums)
     
     valNum = fileNums[-2] # arbitrary 2nd to last batch id
     print ("valNum set aside:", valNum)
@@ -102,7 +102,7 @@ def recover_training(log_file):
 
         payload = payload[1:,:] # remove first row
         np.save(log_file, payload)
-    print "\n\n    TRAINING HAS FINISHED    \n\n"
+    print ("\n\n    TRAINING HAS FINISHED    \n\n")
     
         
 def main(argv):
