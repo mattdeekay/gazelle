@@ -21,7 +21,7 @@ def verify(filename):
     
 """ Run one job (row). Can be training, validation, or testing. """
 def execute_one_row(mode, batch_num_train, batch_num_eval, ep):
-    print "  ", mode, ": epoch", ep, "running fileno ", batch_num_train, "."
+    print ("  ", mode, ": epoch", ep, "running fileno ", batch_num_train, ".")
     
     bnt = str(batch_num_train)
     bne = str(batch_num_eval)
@@ -44,7 +44,7 @@ def start_training(instance):
         datapath = "../../../Owen/gazelle-github-Owen/data_CNN/clean"
     onlyfiles = [f for f in os.listdir(datapath) if isfile(join(datapath, f))]
     onlyfiles.sort()
-    print "There are ", len(onlyfiles), " files: ", onlyfiles
+    print ("There are ", len(onlyfiles), " files: ", onlyfiles)
     
     
     ###############################
@@ -57,15 +57,15 @@ def start_training(instance):
     print fileNums
     
     valNum = fileNums[-2] # arbitrary 2nd to last batch id
-    print "valNum set aside:", valNum
+    print ("valNum set aside:", valNum)
     testNum = fileNums[-1] # arbitrary (1st to) last batch id
-    print "testNum set aside:", testNum
+    print ("testNum set aside:", testNum)
     fileNums = fileNums[:-2]
-    print "file numbers, two set aside:", fileNums
+    print ("file numbers, two set aside:", fileNums)
     # We train fileNum * epochs (train), 1 * epochs (val), 1 (test)
     
     epoch_size = len(fileNums)+1
-    print "epoch_size", epoch_size
+    print ("epoch_size", epoch_size)
     all_with_test = n_epochs*(epoch_size)+1 # testing job += 1
     payload = np.zeros((all_with_test, 4)).astype(int)
 
@@ -97,7 +97,7 @@ def recover_training(log_file):
     payload = np.load(log_file)
     while (payload.shape[0] > 0):
         args = payload[0,:] # first row
-        print "args", args
+        print ("args", args)
         execute_one_row(numToMode(args[0]), args[1], args[2], args[3])
 
         payload = payload[1:,:] # remove first row
