@@ -258,12 +258,11 @@ def cnn_model_fn(feature_cols, labels, mode):
 
   # 3. Generate Predictions
   # Remember, |xy_output| returns a [batch_size, 2] Tensor.
-  # What is supposed to go in here? Unsure, may be wrong. Do we need anything else in the dictionary?
   predictions = {
       "loss": tf.Print(loss, [loss], name="loss_tensor"),
-      "coords delta": tf.subtract(xy_output, labels, name="delta_tensor"),
-      "x difference": tf.slice(tf.subtract(xy_output, labels), [0,0], [-1,1], name="xdiff_tensor"),
-      "y difference": tf.slice(tf.subtract(xy_output, labels), [0,1], [-1,1], name="ydiff_tensor")
+      "coords delta": tf.subtract(xy_output, labels, name="delta_tensor")
+      #"x difference": tf.slice(tf.subtract(xy_output, labels), [0,0], [-1,1], name="xdiff_tensor"),
+      #"y difference": tf.slice(tf.subtract(xy_output, labels), [0,1], [-1,1], name="ydiff_tensor")
   }
 
   # Done: Return a ModelFnOps object
@@ -296,11 +295,7 @@ def load_training_batch_data_globally(train_id):
     TRAIN_LABEL = np.load(train_label_filename)
 
     # return the number of images in the training batch
-    global NUM_SAMPLES
-    NUM_SAMPLES = int(TRAIN_DATA.shape[0])
-    print ("Loaded batch assoc. with number %s." % train_id)
-    print ("Detected %s samples in batch %s." % (NUM_SAMPLES, train_id))
-    return NUM_SAMPLES
+    return TRAIN_DATA.shape[0]
 
 
 ###############################
@@ -316,15 +311,15 @@ def gazelle_input_fn(data, hog, label, mode):
     global MINIBATCH_SIZE
     global NUM_SAMPLES
     
-    if mode == 'train':
-      chopstart = int(BATCH_GSTEP * MINIBATCH_SIZE)
-      chopend = min(chopstart + int(MINIBATCH_SIZE), NUM_SAMPLES)
+    assert NUM_SAMPLES is not None
+    chopstart = int(BATCH_GSTEP * MINIBATCH_SIZE)
+    chopend = min(chopstart + int(MINIBATCH_SIZE), NUM_SAMPLES)
 
-      data = data[chopstart:chopend, :,:,:,:]
-      hog = hog[chopstart:chopend, :,:,:]
-      label = label[chopstart:chopend, :]
+    data = data[chopstart:chopend, :,:,:,:]
+    hog = hog[chopstart:chopend, :,:,:]
+    label = label[chopstart:chopend, :]
 
-      print ("input_fn called, returned data segment [%s, %s)" % (chopstart, chopend))
+    print ("input_fn called, returned data segment [%s, %s)" % (chopstart, chopend))
 
     
     feature_cols = {"data": tf.convert_to_tensor(data, dtype=tf.float32),
@@ -343,6 +338,7 @@ def main(argv):
   global TRAIN_DATA
   global TRAIN_HOG
   global TRAIN_LABEL
+  global NUM_SAMPLES
   
   mode = argv[1] # this parameter is 'train', 'validation' or 'test'
   assert mode == 'test' or mode == 'train' or mode == 'validation'
@@ -353,17 +349,22 @@ def main(argv):
         LEARNRATE = float(argv[4])
         print ("Learn rate has been set to", LEARNRATE)
 
-  # Load all the inputs for a given batch into global variables.
-  train_num = load_training_batch_data_globally(train_id)
-  print ("Detected training batch %s w.size %s" % (train_id, train_num))
-
-  if mode != 'train':
+  # Load all the training inputs for a given batch into global variables.
+  if mode == 'train':
+    assert train_id != 0
+    num = load_training_batch_data_globally(train_id)
+    print ("Detected training batch %s w.size %s" % (train_id, num))
+  else:
+    assert eval_id != 0
     eval_data  = np.load(dataw(eval_id))
     eval_hog   = np.load(hogw(eval_id))
     eval_label = np.load(labelw(eval_id))
+    num = eval_data.shape[0]
+    print ("Detected evaluation (test/vali.) batch %s w.size %s" % (eval_id, num))
+  NUM_SAMPLES = int(num)
 
 
-  num_steps = int(train_num / MINIBATCH_SIZE) + 1
+  num_steps = int(num / MINIBATCH_SIZE) + 1
   print ("minibatch size %s -> dynamically calculated steps %s" % (MINIBATCH_SIZE, num_steps))
   
 
@@ -387,13 +388,14 @@ def main(argv):
         monitors=[logging_hook])
   else: # 'validation' or 'test'
       metrics = { # Configure the accuracy metric for test (eval) / validation
-          "Gazelle prediction mean abs. error":
+          "Gazelle prediction mean abs. x/y direction error":
               learn.MetricSpec(
                   metric_fn=tf.metrics.mean_absolute_error, prediction_key="coords delta")
       }
       # Evaluate the model and print results
       eval_results = gazelle_estimator.evaluate(
           input_fn=lambda: gazelle_input_fn(eval_data, eval_hog, eval_label, mode=mode),
+          steps=num_steps,
           metrics=metrics)
       print(eval_results)
 

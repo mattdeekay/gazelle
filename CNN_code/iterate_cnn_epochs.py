@@ -27,7 +27,9 @@ def execute_one_row(mode, batch_num_train, batch_num_eval, ep):
     bne = str(batch_num_eval)
     
     print ("Calling the gazecapture_cnn.py command...")
-    call("python gazecapture_cnn.py " + mode + ' ' + bnt + ' ' + bne + ' '+ str(LEARNRATE*(0.9**ep))[:10], shell=True)  #[:10] implemented for string format
+    returncode = call("python gazecapture_cnn.py " + mode + ' ' + bnt + ' ' + bne + ' '+ str(LEARNRATE*(0.9**ep)), shell=True)
+    return returncode
+    
 
 
 def start_training(instance):
@@ -56,12 +58,14 @@ def start_training(instance):
     fileNums = list(set(fileNums))
     print (fileNums)
     
-    valNum = fileNums[-2] # arbitrary 2nd to last batch id
+    valNum = 2
     print ("valNum set aside:", valNum)
-    testNum = fileNums[-1] # arbitrary (1st to) last batch id
+    testNum = 4
     print ("testNum set aside:", testNum)
-    fileNums = fileNums[:-2]
-    print ("file numbers, two set aside:", fileNums)
+    fileNums.remove(2)
+    fileNums.remove(4)
+    
+    print ("file numbers, after two set aside:", fileNums)
     # We train fileNum * epochs (train), 1 * epochs (val), 1 (test)
     
     epoch_size = len(fileNums)+1
@@ -98,7 +102,12 @@ def recover_training(log_file):
     while (payload.shape[0] > 0):
         args = payload[0,:] # first row
         print ("args", args)
-        execute_one_row(numToMode(args[0]), args[1], args[2], args[3])
+        
+        retcode = execute_one_row(numToMode(args[0]), args[1], args[2], args[3])
+        print ("We got a return code of", retcode)
+        if retcode != 0:
+            print ("Error: return code from most recent gazecapture call not 0, quitting. Please debug.")
+            quit()
 
         payload = payload[1:,:] # remove first row
         np.save(log_file, payload)
