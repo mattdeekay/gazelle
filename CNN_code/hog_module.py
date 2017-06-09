@@ -12,6 +12,7 @@ genhist works now with [num, H, W]:
     :return: hist.shape = [nbins, num]
 """
 def genhist(im, nbins):
+    im = np.lib.pad(im, ((0,0),(1,1),(1,1)), lambda: 1)
     # The compute gradient function
     dy = im[:, :-2, 1:-1] - im[:, 2:, 1:-1]
     dx = im[:, 1:-1, :-2] - im[:, 1:-1, 2:]
@@ -69,7 +70,7 @@ def compute_hog_features(im, pic, cib, nbins):
     hog_array = np.array(hog_feature)
     hog_array = np.rollaxis(hog_array, 3) # hog_array.shape = [num_im, H_blocks, W_blocks, cib*cib*nbins]
     return hog_array
-"""
+
 if __name__ == '__main__':
     images = ['face1_macron.jpg', 'car.jpg', '240.jpg']
     imarray = []
@@ -87,4 +88,4 @@ if __name__ == '__main__':
     show_hog(im[0], poop[0], figsize = (18,6))
     show_hog(im[1], poop[1], figsize = (18,6))
     show_hog(im[2], poop[2], figsize = (18,6))
-"""
+
