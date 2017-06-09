@@ -293,7 +293,7 @@ def load_training_batch_data_globally(train_id):
 
     # return the number of images in the training batch
     global NUM_SAMPLES
-    NUM_SAMPLES = TRAIN_DATA.shape[0]
+    NUM_SAMPLES = int(TRAIN_DATA.shape[0])
     return NUM_SAMPLES
 
 
@@ -311,14 +311,17 @@ def gazelle_input_fn(data, hog, label, mode):
     global NUM_SAMPLES
     
     if mode == 'train':
-      chopstart = BATCH_GSTEP * MINIBATCH_SIZE
-      chopend = min(chopstart_ind + MINIBATCH_SIZE, NUM_SAMPLES)
+      chopstart = int(BATCH_GSTEP * MINIBATCH_SIZE)
+      chopend = min(chopstart + int(MINIBATCH_SIZE), NUM_SAMPLES)
+      print (chopstart, chopend)
 
       data = data[chopstart:chopend, :,:,:,:]
       hog = hog[chopstart:chopend, :,:,:]
       label = label[chopstart:chopend, :]
 
       print ("input_fn called, returned data segment [%s, %s)" % (chopstart, chopend))
+    else:
+      print ("input_fn called, returned all data" % (chopstart, chopend))
     
     feature_cols = {"data": tf.convert_to_tensor(data, dtype=tf.float32),
                     "hog" : tf.convert_to_tensor(hog, dtype=tf.float32) }
@@ -337,17 +340,18 @@ def main(argv):
   global TRAIN_HOG
   global TRAIN_LABEL
   
-
-  train_id, eval_id = argv[1:3]
-  if len(argv) > 3: LEARNRATE = float(argv[3])
+  mode = argv[1] # this parameter is 'train', 'validation' or 'test'
+  train_id, eval_id = argv[2:4]
+  if len(argv) > 4: LEARNRATE = float(argv[4])
 
   # Load all the inputs for a given batch into global variables.
   train_num = load_training_batch_data_globally(train_id)
-  print ("Detected training batch %s size %s" % (train_id), train_num)
+  print ("Detected training batch %s w.size %s" % (train_id, train_num))
 
-  eval_data  = np.load(eval_data_filename)
-  eval_hog   = np.load(eval_hog_filename)
-  eval_label = np.load(eval_label_filename)
+  if mode != 'train':
+    eval_data  = np.load(dataw(eval_id))
+    eval_hog   = np.load(hogw(eval_id))
+    eval_label = np.load(labelw(eval_id))
 
 
   num_steps = int(train_num / MINIBATCH_SIZE) + 1
@@ -358,8 +362,6 @@ def main(argv):
   
   # Set up logging for when the CNN trains
   tensors_to_log = { "loss": "loss_tensor" }
-                     #"x diff": "xdiff_tensor",
-                     #"y diff": "ydiff_tensor"
   logging_hook = tf.train.LoggingTensorHook(
       tensors=tensors_to_log,
       every_n_iter=1)
@@ -369,24 +371,22 @@ def main(argv):
       model_fn=cnn_model_fn, model_dir="../tmp/gazelle_conv_model")
 
   # Train the model.
-  gazelle_estimator.fit(
-      input_fn=lambda: gazelle_input_fn(TRAIN_DATA, TRAIN_HOG, TRAIN_LABEL, mode='train'),
-      steps=num_steps,
-      monitors=[logging_hook])
-
-  # Make our own GC accuracy metric
-  # Configure the accuracy metric for evaluation
-  metrics = {
-      "Gazelle prediction mean abs. error":
-          learn.MetricSpec(
-              metric_fn=tf.metrics.mean_absolute_error, prediction_key="coords delta")
-  }
-
-  # Evaluate the model and print results
-  eval_results = gazelle_estimator.evaluate(
-      input_fn=lambda: gazelle_input_fn(eval_data, eval_hog, eval_label, mode='eval'),
-      metrics=metrics)
-  print(eval_results)
+  if mode == 'train':
+    gazelle_estimator.fit(
+        input_fn=lambda: gazelle_input_fn(TRAIN_DATA, TRAIN_HOG, TRAIN_LABEL, mode='train'),
+        steps=num_steps,
+        monitors=[logging_hook])
+  else: # 'validation' or 'test'
+      metrics = { # Configure the accuracy metric for test (eval) / validation
+          "Gazelle prediction mean abs. error":
+              learn.MetricSpec(
+                  metric_fn=tf.metrics.mean_absolute_error, prediction_key="coords delta")
+      }
+      # Evaluate the model and print results
+      eval_results = gazelle_estimator.evaluate(
+          input_fn=lambda: gazelle_input_fn(eval_data, eval_hog, eval_label, mode='eval'),
+          metrics=metrics)
+      print(eval_results)
 
 
 if __name__ == "__main__":
