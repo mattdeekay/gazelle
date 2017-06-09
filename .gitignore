@@ -19,3 +19,4 @@ sftp-config.json
 MNIST-data
 CNN_code/we-are-finished.txt
 CNN_code/restarting_iter.npy
+CNN_code/cnnlog.txt

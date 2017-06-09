@@ -27,7 +27,12 @@ def execute_one_row(mode, batch_num_train, batch_num_eval, ep):
     bne = str(batch_num_eval)
     
     print ("Calling the gazecapture_cnn.py command...")
-    call("python gazecapture_cnn.py " + mode + ' ' + bnt + ' ' + bne + ' '+ str(LEARNRATE*(0.9**ep))[:10], shell=True)  #[:10] implemented for string format
+    save_log = open('cnnlog.txt', 'w')
+    call("python gazecapture_cnn.py " + mode + ' ' + bnt + ' ' + bne + ' '+ str(LEARNRATE*(0.9**ep))[:10], shell=True, \
+         stderr=save_log)  #[:10] implemented for string format
+    save_log.close()
+    print ("done")
+    quit()
 
 
 def start_training(instance):
@@ -41,7 +46,7 @@ def start_training(instance):
     if (instance == 'o'):
         datapath = "../data_CNN/clean"
     elif (instance == 'm'):
-        datapath = "../../../Owen/gazelle-github-Owen/data_CNN/clean"
+        datapath = "../../../mdkim/gazelle/data_CNN/clean"
     onlyfiles = [f for f in os.listdir(datapath) if isfile(join(datapath, f))]
     onlyfiles.sort()
     print ("There are ", len(onlyfiles), " files: ", onlyfiles)
