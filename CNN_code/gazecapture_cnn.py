@@ -19,29 +19,39 @@ from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_f
 # Specific to Gazelle.
 import pickle # may be deprecated soon
 from gazelle_utils import *
-import time
-import hog_module as hog
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
 # For debugging
 def tfprint(name, tensor):
   print(name)
-  a = tf.Print(tensor, [tensor])
-  print(a)
+  with tf.Session() as sess:
+      #a = tf.Print(tensor, [tensor])
+      a = sess.run(tensor)
+      print(a)
 
 
 # The learning rate specified as a parameter when running
 #   gazecapture_cnn.py; this is used in |cnn_model_fn|.
-# Defaults to 0.00001 (10^-5).
-LEARNRATE = 0.00001
+
+LEARNRATE = 0.00001  # Defaults to 0.00001 (10^-5).
+MINIBATCH_SIZE = 20.0
+NUM_SAMPLES = None
+BATCH_GSTEP = 0
+
+TRAIN_DATA = None
+TRAIN_HOG = None
+TRAIN_LABEL = None
+
 
 def cnn_model_fn(feature_cols, labels, mode):
-  global learnrate
+  global LEARNRATE
+
   features = feature_cols['data']
   hog_input = feature_cols['hog']
   # features = Tensor("Print:0", shape=(?, 144, 144, 3, 4), dtype=float32)
-  print "cnn_model_fn was called! size", tf.shape(features)
+  print ("cnn_model_fn was called! feature size:")
+  tfprint("features", tf.shape(features))
 
   # Input Layer
   # we have 4 inputs in the order: right eye, left eye, face, face grid (bound by dim #4 of value 4)
@@ -239,10 +249,8 @@ def cnn_model_fn(feature_cols, labels, mode):
     train_op = tf.contrib.layers.optimize_loss(
         loss=loss,
         global_step=tf.contrib.framework.get_global_step(),
-        # learning_rate=0.001 # This was original, when training against X/YPts it needs to be smaller below
         learning_rate=LEARNRATE,
         optimizer="SGD")
-        #decay_rate=tf.??? Can try to use tf.train.exponential_decay
 
   # 3. Generate Predictions
   # Remember, |xy_output| returns a [batch_size, 2] Tensor.
@@ -258,28 +266,6 @@ def cnn_model_fn(feature_cols, labels, mode):
   return model_fn_lib.ModelFnOps(
       mode=mode, predictions=predictions, loss=loss, train_op=train_op)
 
-###############################
-
-"""
-function|gazelle_input_fn|:
-    Supplies our x, y.
-    This allows for SKCompat compatibility, and also gives us a
-    scope to run HOG and supply hog features into the cnn_model_fn.
-"""
-def gazelle_input_fn(data_name, hog_name, eval_name):
-    print ("input_fn was called! this loads everything")
-    data = np.load(data_name)
-    data_hog = np.load(hog_name)
-    labels = np.load(eval_name)
-    
-    #mono_face = hog.as_monochrome(data[:,:,:,:,2]) # shape (N, 144,144)
-    #data_hog = hog.compute_hog_features(mono_face, pic=12, cib=2, nbins=9)
-
-    feature_cols = {"data": tf.convert_to_tensor(data, dtype=tf.float32),
-                    "hog" : tf.convert_to_tensor(data_hog, dtype=tf.float32) }
-    return feature_cols, tf.convert_to_tensor(labels, dtype=tf.float32)
-
-
 
 ##############################
 # Helper.
@@ -288,37 +274,104 @@ def labelw(num): return CNN_DATA_ROOT + "XYArray" + str(num) + '.npy'
 def hogw(num): return CNN_DATA_ROOT + "hog" + str(num) + '.npy'
 
 
+###############################
+
+# Load input data globally, so we can implement mini-batches.
+#    This is only run once at the beginning of main().
+
+def load_training_batch_data_globally(train_id):
+    train_data_filename = dataw(train_id)
+    train_hog_filename = hogw(train_id)
+    train_label_filename = labelw(train_id)
+    
+    global TRAIN_DATA
+    global TRAIN_HOG
+    global TRAIN_LABEL
+    TRAIN_DATA  = np.load(train_data_filename)
+    TRAIN_HOG   = np.load(train_hog_filename)
+    TRAIN_LABEL = np.load(train_label_filename)
+
+    # return the number of images in the training batch
+    global NUM_SAMPLES
+    NUM_SAMPLES = TRAIN_DATA.shape[0]
+    return NUM_SAMPLES
+
+
+###############################
+
+"""
+function|gazelle_input_fn|:
+    Supplies our x, y.
+    This allows for SKCompat compatibility, and also gives us a
+    scope to run HOG and supply hog features into the cnn_model_fn.
+"""
+def gazelle_input_fn(data, hog, label, mode):
+    global BATCH_GSTEP
+    global MINIBATCH_SIZE
+    global NUM_SAMPLES
+    
+    if mode == 'train':
+      chopstart = BATCH_GSTEP * MINIBATCH_SIZE
+      chopend = min(chopstart_ind + MINIBATCH_SIZE, NUM_SAMPLES)
+
+      data = data[chopstart:chopend, :,:,:,:]
+      hog = hog[chopstart:chopend, :,:,:]
+      label = label[chopstart:chopend, :]
+
+      print ("input_fn called, returned data segment [%s, %s)" % (chopstart, chopend))
+    
+    feature_cols = {"data": tf.convert_to_tensor(data, dtype=tf.float32),
+                    "hog" : tf.convert_to_tensor(hog, dtype=tf.float32) }
+
+    BATCH_GSTEP += 1
+    return feature_cols, tf.convert_to_tensor(label, dtype=tf.float32)
+
+
 ##############################
 
 def main(argv):
   """ argv = 'gazecapture_cnn.py', [id of train], [id of test/eval], learnrate (optional) """
-  train_id, eval_id = argv[1:3]
+  global MINIBATCH_SIZE  
   global LEARNRATE
+  global TRAIN_DATA
+  global TRAIN_HOG
+  global TRAIN_LABEL
+  
 
-  train_data_filename = dataw(train_id)
-  train_hog_filename = hogw(train_id)
-  train_labels_filename = labelw(train_id)
-  eval_data_filename = dataw(eval_id)
-  eval_hog_filename = hogw(eval_id)
-  eval_labels_filename = labelw(eval_id)
+  train_id, eval_id = argv[1:3]
   if len(argv) > 3: LEARNRATE = float(argv[3])
+
+  # Load all the inputs for a given batch into global variables.
+  train_num = load_training_batch_data_globally(train_id)
+  print ("Detected training batch %s size %s" % (train_id), train_num)
+
+  eval_data  = np.load(eval_data_filename)
+  eval_hog   = np.load(eval_hog_filename)
+  eval_label = np.load(eval_label_filename)
+
+
+  num_steps = int(train_num / MINIBATCH_SIZE) + 1
+  print ("minibatch size %s -> dynamically calculated steps %s" % (MINIBATCH_SIZE, num_steps))
+  
+
+  # --------------------------------------------------------
+  
+  # Set up logging for when the CNN trains
+  tensors_to_log = { "loss": "loss_tensor" }
+                     #"x diff": "xdiff_tensor",
+                     #"y diff": "ydiff_tensor"
+  logging_hook = tf.train.LoggingTensorHook(
+      tensors=tensors_to_log,
+      every_n_iter=1)
 
   # Create the Estimator, which encompasses training and evaluation
   gazelle_estimator = learn.Estimator(
       model_fn=cnn_model_fn, model_dir="../tmp/gazelle_conv_model")
 
-  # Set up logging for when the CNN trains
-  tensors_to_log = { "loss": "loss_tensor",
-                     "x diff": "xdiff_tensor",
-                     "y diff": "ydiff_tensor" }
-  logging_hook = tf.train.LoggingTensorHook(
-      tensors=tensors_to_log,
-      every_n_iter=5)
-
   # Train the model.
   gazelle_estimator.fit(
-      input_fn=lambda: gazelle_input_fn(train_data_filename, train_hog_filename, train_labels_filename),
-      steps=3, # At every step, does it randomly pull out 4 samples from the 364? Can test this tomorrow
+      input_fn=lambda: gazelle_input_fn(TRAIN_DATA, TRAIN_HOG, TRAIN_LABEL, mode='train'),
+      steps=num_steps,
       monitors=[logging_hook])
 
   # Make our own GC accuracy metric
@@ -331,7 +384,7 @@ def main(argv):
 
   # Evaluate the model and print results
   eval_results = gazelle_estimator.evaluate(
-      input_fn=lambda: gazelle_input_fn(eval_data_filename, eval_hog_filename, eval_labels_filename),
+      input_fn=lambda: gazelle_input_fn(eval_data, eval_hog, eval_label, mode='eval'),
       metrics=metrics)
   print(eval_results)
 
