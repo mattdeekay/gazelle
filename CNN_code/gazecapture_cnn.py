@@ -23,8 +23,7 @@ from gazelle_utils import *
 tf.logging.set_verbosity(tf.logging.INFO)
 
 # For debugging
-def tfprint(name, tensor):
-  print(name)
+def tfprint(tensor):
   with tf.Session() as sess:
       #a = tf.Print(tensor, [tensor])
       a = sess.run(tensor)
@@ -35,7 +34,7 @@ def tfprint(name, tensor):
 #   gazecapture_cnn.py; this is used in |cnn_model_fn|.
 
 LEARNRATE = 0.00001  # Defaults to 0.00001 (10^-5).
-MINIBATCH_SIZE = 20.0
+MINIBATCH_SIZE = 20
 NUM_SAMPLES = None
 BATCH_GSTEP = 0
 
@@ -50,8 +49,8 @@ def cnn_model_fn(feature_cols, labels, mode):
   features = feature_cols['data']
   hog_input = feature_cols['hog']
   # features = Tensor("Print:0", shape=(?, 144, 144, 3, 4), dtype=float32)
-  print ("cnn_model_fn was called! feature size:")
-  tfprint("features", tf.shape(features))
+  print ("cnn_model_fn was called, feature size:")
+  tfprint(tf.shape(features))
 
   # Input Layer
   # we have 4 inputs in the order: right eye, left eye, face, face grid (bound by dim #4 of value 4)
@@ -67,30 +66,30 @@ def cnn_model_fn(feature_cols, labels, mode):
   # ============================
   # Convolutional Layer #1
   # Input Tensor Shape: [batch_size, 144, 144, 3]
-  # Output Tensor Shape: [batch_size, 144, 144, 96]
+  # Output Tensor Shape: [batch_size, 144, 144, 48]
   conv_ER1 = tf.layers.conv2d(
       inputs=R_eye,
-      filters=96,
+      filters=48,
       kernel_size=[11,11],
       padding="same",
       activation=tf.nn.relu)
   conv_EL1 = tf.layers.conv2d(
       inputs=L_eye,
-      filters=96,
+      filters=48,
       kernel_size=[11,11],
       padding="same",
       activation=tf.nn.relu)
   conv_F1  = tf.layers.conv2d(
       inputs=face,
-      filters=96,
+      filters=48,
       kernel_size=[11,11],
       padding="same",
       activation=tf.nn.relu)
-  # Tensor("Print:0", shape=(?, 144, 144, 96), dtype=float32)
+  # Tensor("Print:0", shape=(?, 144, 144, 48), dtype=float32)
 
   # Pooling Layer 1
-  # Input Tensor Shape: [batch_size, 144, 144, 96]
-  # Output Tensor Shape: [batch_size, 72, 72, 96]
+  # Input Tensor Shape: [batch_size, 144, 144, 48]
+  # Output Tensor Shape: [batch_size, 72, 72, 48]
   conv_ER1_pooled = tf.layers.max_pooling2d(
       inputs=conv_ER1,
       pool_size=[2,2],
@@ -105,52 +104,52 @@ def cnn_model_fn(feature_cols, labels, mode):
       strides=2)
 
   # Convolutional Layer #2
-  # Input Tensor Shape: [batch_size, 72, 72, 96]
-  # Output Tensor Shape: [batch_size, 72, 72, 256]
+  # Input Tensor Shape: [batch_size, 72, 72, 48]
+  # Output Tensor Shape: [batch_size, 72, 72, 128]
   conv_ER2 = tf.layers.conv2d(
       inputs=conv_ER1_pooled,
-      filters=256,
+      filters=128,
       kernel_size=[5,5],
       padding="same",
       activation=tf.nn.relu)
   conv_EL2 = tf.layers.conv2d(
       inputs=conv_EL1_pooled,
-      filters=256,
+      filters=128,
       kernel_size=[5,5],
       padding="same",
       activation=tf.nn.relu)
   conv_F2  = tf.layers.conv2d(
       inputs=conv_F1_pooled,
-      filters=256,
+      filters=128,
       kernel_size=[5,5],
       padding="same",
       activation=tf.nn.relu)
 
   # Convolutional Layer #3
-  # Input Tensor Shape: [batch_size, 72, 72, 256]
-  # Output Tensor Shape: [batch_size, 72, 72, 384]
+  # Input Tensor Shape: [batch_size, 72, 72, 128]
+  # Output Tensor Shape: [batch_size, 72, 72, 192]
   conv_ER3 = tf.layers.conv2d(
       inputs=conv_ER2,
-      filters=384,
+      filters=192,
       kernel_size=[3,3],
       padding="same",
       activation=tf.nn.relu)
   conv_EL3 = tf.layers.conv2d(
       inputs=conv_EL2,
-      filters=384,
+      filters=192,
       kernel_size=[3,3],
       padding="same",
       activation=tf.nn.relu)
   conv_F3  = tf.layers.conv2d(
       inputs=conv_F2,
-      filters=384,
+      filters=192,
       kernel_size=[3,3],
       padding="same",
       activation=tf.nn.relu)
 
   # Pooling Layer 2
-  # Input Tensor Shape: [batch_size, 72, 72, 384]
-  # Output Tensor Shape: [batch_size, 36, 36, 384]
+  # Input Tensor Shape: [batch_size, 72, 72, 192]
+  # Output Tensor Shape: [batch_size, 36, 36, 192]
   conv_ER3_pooled = tf.layers.max_pooling2d(
       inputs=conv_ER3,
       pool_size=[2,2],
@@ -165,7 +164,7 @@ def cnn_model_fn(feature_cols, labels, mode):
       strides=2)
 
   # Convolutional Layer #4
-  # Input Tensor Shape: [batch_size, 36, 36, 384]
+  # Input Tensor Shape: [batch_size, 36, 36, 192]
   # Output Tensor Shape: [batch_size, 36, 36, 64]
   conv_ER4 = tf.layers.conv2d(
       inputs=conv_ER3_pooled,
@@ -294,6 +293,8 @@ def load_training_batch_data_globally(train_id):
     # return the number of images in the training batch
     global NUM_SAMPLES
     NUM_SAMPLES = int(TRAIN_DATA.shape[0])
+    print ("Loaded batch assoc. with number %s." % train_id)
+    print ("Detected %s samples in batch %s." % (NUM_SAMPLES, train_id))
     return NUM_SAMPLES
 
 
@@ -320,8 +321,7 @@ def gazelle_input_fn(data, hog, label, mode):
       label = label[chopstart:chopend, :]
 
       print ("input_fn called, returned data segment [%s, %s)" % (chopstart, chopend))
-    else:
-      print ("input_fn called, returned all data" % (chopstart, chopend))
+
     
     feature_cols = {"data": tf.convert_to_tensor(data, dtype=tf.float32),
                     "hog" : tf.convert_to_tensor(hog, dtype=tf.float32) }
@@ -341,8 +341,13 @@ def main(argv):
   global TRAIN_LABEL
   
   mode = argv[1] # this parameter is 'train', 'validation' or 'test'
+  assert mode == 'test' or mode == 'train' or mode == 'validation'
+  print ("Mode has been detected as '%s'" % mode)
+
   train_id, eval_id = argv[2:4]
-  if len(argv) > 4: LEARNRATE = float(argv[4])
+  if len(argv) > 4:
+        LEARNRATE = float(argv[4])
+        print ("Learn rate has been set to", LEARNRATE)
 
   # Load all the inputs for a given batch into global variables.
   train_num = load_training_batch_data_globally(train_id)
@@ -373,7 +378,7 @@ def main(argv):
   # Train the model.
   if mode == 'train':
     gazelle_estimator.fit(
-        input_fn=lambda: gazelle_input_fn(TRAIN_DATA, TRAIN_HOG, TRAIN_LABEL, mode='train'),
+        input_fn=lambda: gazelle_input_fn(TRAIN_DATA, TRAIN_HOG, TRAIN_LABEL, mode=mode),
         steps=num_steps,
         monitors=[logging_hook])
   else: # 'validation' or 'test'
@@ -384,10 +389,12 @@ def main(argv):
       }
       # Evaluate the model and print results
       eval_results = gazelle_estimator.evaluate(
-          input_fn=lambda: gazelle_input_fn(eval_data, eval_hog, eval_label, mode='eval'),
+          input_fn=lambda: gazelle_input_fn(eval_data, eval_hog, eval_label, mode=mode),
           metrics=metrics)
       print(eval_results)
 
 
 if __name__ == "__main__":
-  tf.app.run()
+  with tf.Session() as sess:
+    with tf.device("/gpu:0"):
+      tf.app.run()
