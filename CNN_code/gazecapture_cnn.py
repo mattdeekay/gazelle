@@ -25,14 +25,25 @@ tf.logging.set_verbosity(tf.logging.INFO)
 # For debugging
 def tfprint(name, tensor):
   print(name)
-  a = tf.Print(tensor, [tensor])
-  print(a)
+  with tf.Session() as sess:
+      #a = tf.Print(tensor, [tensor])
+      a = sess.run(tensor)
+      print(a)
 
 
 # The learning rate specified as a parameter when running
 #   gazecapture_cnn.py; this is used in |cnn_model_fn|.
-# Defaults to 0.00001 (10^-5).
-LEARNRATE = 0.00001
+
+LEARNRATE = 0.00001  # Defaults to 0.00001 (10^-5).
+BATCH_GSTEP = 0
+
+TRAIN_DATA = None
+TRAIN_HOG = None
+TRAIN_LABEL = None
+
+EVAL_DATA = None
+EVAL_HOG = None
+EVAL_LABEL = None
 
 def cnn_model_fn(feature_cols, labels, mode):
   global learnrate
@@ -238,10 +249,8 @@ def cnn_model_fn(feature_cols, labels, mode):
     train_op = tf.contrib.layers.optimize_loss(
         loss=loss,
         global_step=tf.contrib.framework.get_global_step(),
-        # learning_rate=0.001 # This was original, when training against X/YPts it needs to be smaller below
         learning_rate=LEARNRATE,
         optimizer="SGD")
-        #decay_rate=tf.??? Can try to use tf.train.exponential_decay
 
   # 3. Generate Predictions
   # Remember, |xy_output| returns a [batch_size, 2] Tensor.
@@ -259,6 +268,18 @@ def cnn_model_fn(feature_cols, labels, mode):
 
 ###############################
 
+
+def load_batch_data_globally(train_id, eval_id):
+    train_data_filename = dataw(train_id)
+    train_hog_filename = hogw(train_id)
+    train_labels_filename = labelw(train_id)
+
+    eval_data_filename = dataw(eval_id)
+    eval_hog_filename = hogw(eval_id)
+    eval_labels_filename = labelw(eval_id)
+    
+    TRAIN_DATA = 
+
 """
 function|gazelle_input_fn|:
     Supplies our x, y.
@@ -266,14 +287,11 @@ function|gazelle_input_fn|:
     scope to run HOG and supply hog features into the cnn_model_fn.
 """
 def gazelle_input_fn(data_name, hog_name, eval_name):
-    print ("input_fn was called! this loads everything")
+    print ("input_fn was called! this loads everything, and it'll be fed into fit")
     data = np.load(data_name)[:10,:,:,:,:]
     data_hog = np.load(hog_name)[:10,:,:,:]
     labels = np.load(eval_name)[:10,:]
     
-    #mono_face = hog.as_monochrome(data[:,:,:,:,2]) # shape (N, 144,144)
-    #data_hog = hog.compute_hog_features(mono_face, pic=12, cib=2, nbins=9)
-
     feature_cols = {"data": tf.convert_to_tensor(data, dtype=tf.float32),
                     "hog" : tf.convert_to_tensor(data_hog, dtype=tf.float32) }
     return feature_cols, tf.convert_to_tensor(labels, dtype=tf.float32)
@@ -292,18 +310,12 @@ def hogw(num): return CNN_DATA_ROOT + "hog" + str(num) + '.npy'
 def main(argv):
   """ argv = 'gazecapture_cnn.py', [id of train], [id of test/eval], learnrate (optional) """
   train_id, eval_id = argv[1:3]
+  
   global LEARNRATE
-
-  train_data_filename = dataw(train_id)
-  train_hog_filename = hogw(train_id)
-  train_labels_filename = labelw(train_id)
-  eval_data_filename = dataw(eval_id)
-  eval_hog_filename = hogw(eval_id)
-  eval_labels_filename = labelw(eval_id)
   if len(argv) > 3: LEARNRATE = float(argv[3])
 
   # Load all the inputs for a given batch into global variables.
-  #
+  load_batch_data_globally(train_id, eval_id)
     
     
   # Create the Estimator, which encompasses training and evaluation
