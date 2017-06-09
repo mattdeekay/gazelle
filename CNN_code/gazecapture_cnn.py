@@ -287,7 +287,7 @@ def main(unused_argv):
   gazelle_estimator.fit(
       x=train_data,
       y=train_labels,
-      batch_size=4,
+      batch_size=100,
       steps=100, # At every step, does it randomly pull out 4 samples from the 364? Can test this tomorrow
       monitors=[logging_hook])
 
