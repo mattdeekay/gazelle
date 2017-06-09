@@ -20,6 +20,7 @@ def run_one_batch(mode, batch_num_train, batch_num_eval):
     bnt = str(batch_num_train)
     bne = str(batch_num_eval)
     
+    print ("Calling the gazecapture_cnn.py command...")
     call("python gazecapture_cnn.py " + mode + ' ' + bnt + ' ' + bne + ' '+ str(LEARNRATE), shell=True)
     
     # We have to figure out some way to log the losses during training, so we can plot it for our report
@@ -57,7 +58,7 @@ def main(argv):
     testNum = fileNums[-1]
     fileNums = fileNums[:-2]
     
-    n_epochs = 10
+    n_epochs = 1
     # 'train' 'test' 'validation'
     for i in xrange(n_epochs):
         print "Running epoch ", i, "."

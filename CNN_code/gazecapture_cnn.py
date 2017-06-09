@@ -20,14 +20,16 @@ from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_f
 import pickle # may be deprecated soon
 from gazelle_utils import *
 
-tf.logging.set_verbosity(tf.logging.INFO)
+tf.logging.set_verbosity(tf.logging.ERROR)
 
-# For debugging
-def tfprint(tensor):
+# For debugging. This prints.
+# THIS SHIT BROKEN
+def tfprint(tensor, message=None):
+  if message is not None: print(message)
   with tf.Session() as sess:
-      #a = tf.Print(tensor, [tensor])
-      a = sess.run(tensor)
-      print(a)
+    a = sess.run([tensor])
+    print(a)
+            
 
 
 # The learning rate specified as a parameter when running
@@ -49,8 +51,11 @@ def cnn_model_fn(feature_cols, labels, mode):
   features = feature_cols['data']
   hog_input = feature_cols['hog']
   # features = Tensor("Print:0", shape=(?, 144, 144, 3, 4), dtype=float32)
-  print ("cnn_model_fn was called, feature size:")
-  tfprint(tf.shape(features))
+  print ("cnn_model_fn was called, in mode '%s'" % mode)
+  #print ("features, hog, labels size:")
+  #tfprint(tf.shape(features))
+  #tfprint(tf.shape(hog_input))
+  #tfprint(tf.shape(labels))
 
   # Input Layer
   # we have 4 inputs in the order: right eye, left eye, face, face grid (bound by dim #4 of value 4)
@@ -61,7 +66,7 @@ def cnn_model_fn(feature_cols, labels, mode):
   face  = tf.squeeze(tf.slice(features, [0,0,0,0,2], [-1, 144, 144, 3, 1]), axis=4)
   fgrid = tf.squeeze(tf.slice(features, [0,0,0,0,3], [-1, 144, 144, 3, 1]), axis=4)
   # Tensor("Print_1:0", shape=(?, 1, 144, 144, 3), dtype=float32)
-
+  
   # Convolving the Eyes and Face
   # ============================
   # Convolutional Layer #1
@@ -314,7 +319,6 @@ def gazelle_input_fn(data, hog, label, mode):
     if mode == 'train':
       chopstart = int(BATCH_GSTEP * MINIBATCH_SIZE)
       chopend = min(chopstart + int(MINIBATCH_SIZE), NUM_SAMPLES)
-      print (chopstart, chopend)
 
       data = data[chopstart:chopend, :,:,:,:]
       hog = hog[chopstart:chopend, :,:,:]
