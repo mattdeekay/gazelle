@@ -27,12 +27,10 @@ def execute_one_row(mode, batch_num_train, batch_num_eval, ep):
     bne = str(batch_num_eval)
     
     print ("Calling the gazecapture_cnn.py command...")
-    save_log = open('cnnlog.txt', 'w')
-    call("python gazecapture_cnn.py " + mode + ' ' + bnt + ' ' + bne + ' '+ str(LEARNRATE*(0.9**ep))[:10], shell=True, \
+    save_log = open('logs/' + 'ep%s/' % ep + 'cnnlog_ep%s_%s_train%s_eval%s.txt' % (ep, mode, batch_num_train, batch_num_eval), 'w')
+    call("python gazecapture_cnn.py " + mode + ' ' + bnt + ' ' + bne + ' '+ str(LEARNRATE*(0.9**ep)), shell=True, \
          stderr=save_log)  #[:10] implemented for string format
     save_log.close()
-    print ("done")
-    quit()
 
 
 def start_training(instance):
