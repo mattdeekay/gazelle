@@ -19,8 +19,6 @@ from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_f
 # Specific to Gazelle.
 import pickle # may be deprecated soon
 from gazelle_utils import *
-import time
-import hog_module as hog
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -41,7 +39,8 @@ def cnn_model_fn(feature_cols, labels, mode):
   features = feature_cols['data']
   hog_input = feature_cols['hog']
   # features = Tensor("Print:0", shape=(?, 144, 144, 3, 4), dtype=float32)
-  print "cnn_model_fn was called! size", tf.shape(features)
+  print ("cnn_model_fn was called! feature size:")
+  tfprint("features", tf.shape(features))
 
   # Input Layer
   # we have 4 inputs in the order: right eye, left eye, face, face grid (bound by dim #4 of value 4)
@@ -268,9 +267,9 @@ function|gazelle_input_fn|:
 """
 def gazelle_input_fn(data_name, hog_name, eval_name):
     print ("input_fn was called! this loads everything")
-    data = np.load(data_name)
-    data_hog = np.load(hog_name)
-    labels = np.load(eval_name)
+    data = np.load(data_name)[:10,:,:,:,:]
+    data_hog = np.load(hog_name)[:10,:,:,:]
+    labels = np.load(eval_name)[:10,:]
     
     #mono_face = hog.as_monochrome(data[:,:,:,:,2]) # shape (N, 144,144)
     #data_hog = hog.compute_hog_features(mono_face, pic=12, cib=2, nbins=9)
@@ -303,14 +302,18 @@ def main(argv):
   eval_labels_filename = labelw(eval_id)
   if len(argv) > 3: LEARNRATE = float(argv[3])
 
+  # Load all the inputs for a given batch into global variables.
+  #
+    
+    
   # Create the Estimator, which encompasses training and evaluation
   gazelle_estimator = learn.Estimator(
       model_fn=cnn_model_fn, model_dir="../tmp/gazelle_conv_model")
 
   # Set up logging for when the CNN trains
-  tensors_to_log = { "loss": "loss_tensor",
-                     "x diff": "xdiff_tensor",
-                     "y diff": "ydiff_tensor" }
+  tensors_to_log = { "loss": "loss_tensor" }
+                     #"x diff": "xdiff_tensor",
+                     #"y diff": "ydiff_tensor"
   logging_hook = tf.train.LoggingTensorHook(
       tensors=tensors_to_log,
       every_n_iter=5)
