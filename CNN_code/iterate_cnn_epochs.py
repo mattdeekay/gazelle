@@ -69,7 +69,7 @@ def start_training(instance):
     all_with_test = n_epochs*(epoch_size)+1 # testing job += 1
     payload = np.zeros((all_with_test, 4)).astype(int)
 
-    for i in xrange(payload.shape[0]):
+    for i in range(payload.shape[0]):
         ep = int(i/epoch_size)
         if (i % epoch_size) + 1 == epoch_size:
             payload[i] = np.array([232, 0, valNum, ep]) # validation
