@@ -41,6 +41,7 @@ def cnn_model_fn(feature_cols, labels, mode):
   features = feature_cols['data']
   hog_input = feature_cols['hog']
   # features = Tensor("Print:0", shape=(?, 144, 144, 3, 4), dtype=float32)
+  print "cnn_model_fn was called! size", tf.shape(features)
 
   # Input Layer
   # we have 4 inputs in the order: right eye, left eye, face, face grid (bound by dim #4 of value 4)
@@ -265,12 +266,14 @@ function|gazelle_input_fn|:
     This allows for SKCompat compatibility, and also gives us a
     scope to run HOG and supply hog features into the cnn_model_fn.
 """
-def gazelle_input_fn(data_name, eval_name):
-    data = np.load(data_name)[:10,:,:,:,:]
-    labels = np.load(eval_name)[:10,:]
+def gazelle_input_fn(data_name, hog_name, eval_name):
+    print ("input_fn was called! this loads everything")
+    data = np.load(data_name)
+    data_hog = np.load(hog_name)
+    labels = np.load(eval_name)
     
-    mono_face = hog.as_monochrome(data[:,:,:,:,2]) # shape (N, 144,144)
-    data_hog = hog.compute_hog_features(mono_face, pic=12, cib=2, nbins=9)
+    #mono_face = hog.as_monochrome(data[:,:,:,:,2]) # shape (N, 144,144)
+    #data_hog = hog.compute_hog_features(mono_face, pic=12, cib=2, nbins=9)
 
     feature_cols = {"data": tf.convert_to_tensor(data, dtype=tf.float32),
                     "hog" : tf.convert_to_tensor(data_hog, dtype=tf.float32) }
@@ -282,6 +285,7 @@ def gazelle_input_fn(data_name, eval_name):
 # Helper.
 def dataw(num): return CNN_DATA_ROOT + "data" + str(num) + '.npy'
 def labelw(num): return CNN_DATA_ROOT + "XYArray" + str(num) + '.npy'
+def hogw(num): return CNN_DATA_ROOT + "hog" + str(num) + '.npy'
 
 
 ##############################
@@ -292,8 +296,10 @@ def main(argv):
   global LEARNRATE
 
   train_data_filename = dataw(train_id)
+  train_hog_filename = hogw(train_id)
   train_labels_filename = labelw(train_id)
   eval_data_filename = dataw(eval_id)
+  eval_hog_filename = hogw(eval_id)
   eval_labels_filename = labelw(eval_id)
   if len(argv) > 3: LEARNRATE = float(argv[3])
 
@@ -310,10 +316,9 @@ def main(argv):
       every_n_iter=5)
 
   # Train the model.
-  #???? FIGURE OUT HOW STEPS WORKS
   gazelle_estimator.fit(
-      input_fn=lambda: gazelle_input_fn(train_data_filename, train_labels_filename),
-      steps=1000, # At every step, does it randomly pull out 4 samples from the 364? Can test this tomorrow
+      input_fn=lambda: gazelle_input_fn(train_data_filename, train_hog_filename, train_labels_filename),
+      steps=3, # At every step, does it randomly pull out 4 samples from the 364? Can test this tomorrow
       monitors=[logging_hook])
 
   # Make our own GC accuracy metric
@@ -326,7 +331,7 @@ def main(argv):
 
   # Evaluate the model and print results
   eval_results = gazelle_estimator.evaluate(
-      input_fn=lambda: gazelle_input_fn(eval_data_filename, eval_labels_filename),
+      input_fn=lambda: gazelle_input_fn(eval_data_filename, eval_hog_filename, eval_labels_filename),
       metrics=metrics)
   print(eval_results)
 
