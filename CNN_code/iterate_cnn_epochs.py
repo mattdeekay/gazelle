@@ -25,11 +25,14 @@ def execute_one_row(mode, batch_num_train, batch_num_eval, ep):
     
     bnt = str(batch_num_train)
     bne = str(batch_num_eval)
-    
+    stdout_destination = None # The default
+    if mode == 'validation':
+        stdout_destination = open('logs/ep%s/' % ep + 'cnnlog_ep%s_%s_train%s_eval%s_consoleprintedlosses.txt' % (ep, mode, batch_num_train, batch_num_eval), 'w')
+
     print ("Calling the gazecapture_cnn.py command...")
     save_log = open('logs/' + 'ep%s/' % ep + 'cnnlog_ep%s_%s_train%s_eval%s.txt' % (ep, mode, batch_num_train, batch_num_eval), 'w') 
     returncode = call("python gazecapture_cnn.py " + mode + ' ' + bnt + ' ' + bne + ' '+ str(LEARNRATE*(0.9**ep)), shell=True, \
-         stderr=save_log)
+         stderr=save_log, stdout=stdout_destination)
     save_log.close()
     return returncode
 
@@ -60,13 +63,11 @@ def start_training(instance):
     fileNums = list(set(fileNums))
     print (fileNums)
     
-    valNum = 2
+    valNum = fileNums[-1]
     print ("valNum set aside:", valNum)
-    testNum = 4
+    testNum = fileNums[-2]
     print ("testNum set aside:", testNum)
-    fileNums.remove(2)
-    fileNums.remove(4)
-    
+    fileNums = fileNums[:-2]
     print ("file numbers, after two set aside:", fileNums)
     # We train fileNum * epochs (train), 1 * epochs (val), 1 (test)
     
@@ -110,9 +111,12 @@ def recover_training(log_file):
         if retcode != 0:
             print ("Error: return code from most recent gazecapture call not 0, quitting. Please debug.")
             quit()
+        else:
+            print ("Job with args", args, "ran successfully!")
 
         payload = payload[1:,:] # remove first row
         np.save(log_file, payload)
+        print ("Updated the .npy job list. Moving on.\n")
     print ("\n\n    TRAINING HAS FINISHED    \n\n")
     
         

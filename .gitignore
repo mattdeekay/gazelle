@@ -7,6 +7,7 @@ toy_CNN_data/
 tmp*/
 data_CNN/
 MNIST-data/
+log*/
 # file types ignore #
 #####################
 *.swp
